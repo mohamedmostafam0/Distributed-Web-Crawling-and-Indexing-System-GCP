@@ -42,7 +42,7 @@ resource "google_monitoring_alert_policy" "master_cpu_high" {
 
   alert_strategy {
      # Configure how notifications behave
-     # auto_close = "1800s" # Example: Auto-close after 30 mins
+     # auto_close = "900s" # Example: Auto-close after 15 mins
   }
 
   # Link the notification channel created above
@@ -77,3 +77,4 @@ resource "google_monitoring_alert_policy" "master_cpu_high" {
 #   notification_channels = [google_monitoring_notification_channel.email.id]
 #   user_labels = { severity = "warning", role = "crawler" }
 # }
+

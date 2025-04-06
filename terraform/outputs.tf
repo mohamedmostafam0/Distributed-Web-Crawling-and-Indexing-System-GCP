@@ -58,3 +58,8 @@ output "firewall_rule_names" {
     allow_egress   = google_compute_firewall.allow_egress.name
   }
 }
+
+output "gcs_bucket_name" {
+  description = "Name of the Google Cloud Storage bucket created for crawler data."
+  value       = google_storage_bucket.webcrawler_data.name
+}
