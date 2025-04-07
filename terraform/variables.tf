@@ -140,3 +140,27 @@ variable "pubsub_subscription_name" {
   description = "The name of the Pub/Sub subscription"
   default     = "my-new-subscription"
 }
+
+variable "crawl_tasks_topic_name" {
+  description = "Name for the Pub/Sub topic for crawl tasks."
+  type        = string
+  default     = "crawl-tasks-topic"
+}
+
+variable "index_queue_topic_name" {
+  description = "Name for the Pub/Sub topic for indexing tasks."
+  type        = string
+  default     = "index-queue-topic"
+}
+
+variable "crawl_tasks_subscription_name" {
+  description = "Name for the Pub/Sub subscription for crawl tasks."
+  type        = string
+  default     = "crawl-tasks-sub"
+}
+
+variable "index_queue_subscription_name" {
+  description = "Name for the Pub/Sub subscription for indexing tasks."
+  type        = string
+  default     = "index-queue-sub"
+}

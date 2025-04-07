@@ -10,9 +10,9 @@ echo "Starting Master Node Bootstrap Script (GCP)"
 date '+%Y-%m-%d %H:%M:%S'
 
 # --- Get Instance Metadata ---
-# INTERNAL_IP=$(curl -H "${METADATA_FLAVOR_HEADER}" ${METADATA_URL}/instance/network-interfaces/0/ip)
-# ZONE=$(curl -H "${METADATA_FLAVOR_HEADER}" ${METADATA_URL}/instance/zone | cut -d'/' -f4)
-# echo "Running in Zone: ${ZONE}, Internal IP: ${INTERNAL_IP}"
+INTERNAL_IP=$(curl -H "${METADATA_FLAVOR_HEADER}" ${METADATA_URL}/instance/network-interfaces/0/ip)
+ZONE=$(curl -H "${METADATA_FLAVOR_HEADER}" ${METADATA_URL}/instance/zone | cut -d'/' -f4)
+echo "Running in Zone: ${ZONE}, Internal IP: ${INTERNAL_IP}"
 
 # --- Install Packages ---
 sudo apt-get update -y
@@ -22,7 +22,7 @@ sudo apt-get install -y python3 python3-pip git curl wget unzip tree apt-transpo
 # --- Install Google Cloud CLI (Optional but often useful) ---
 # if ! type gcloud > /dev/null; then
 #     echo "Installing Google Cloud CLI"
-#     echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+
 #     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo tee /usr/share/keyrings/cloud.google.gpg > /dev/null
 #     sudo apt-get update -y && sudo apt-get install -y google-cloud-cli
 # fi
@@ -32,19 +32,76 @@ sudo apt-get install -y python3 python3-pip git curl wget unzip tree apt-transpo
 # cd /path/to/your/cloned/repo
 # sudo pip3 install -r requirements.txt
 
-# Clone your application code
-# git clone https://your-repo-url.com/project.git /opt/webcrawler-app
-# cd /opt/webcrawler-app
+# --- Setup Application Directory ---
+APP_DIR="/opt/webcrawler-app"
+sudo mkdir -p ${APP_DIR}
+sudo chown -R $(whoami):$(whoami) ${APP_DIR}
 
-# Configure environment variables / application config
-# export QUEUE_PROJECT_ID="${var.gcp_project_id}" # Get from TF or directly
-# export QUEUE_TOPIC_NAME="your-topic-name"
-# export GCS_BUCKET_NAME="your-bucket-name"
+# --- Clone Application Code ---
+git clone https://github.com/your-repo/webcrawler.git ${APP_DIR}
+cd ${APP_DIR}
 
-# Setup systemd service for the master process
-# Create /etc/systemd/system/crawler-master.service
-# sudo systemctl enable crawler-master
-# sudo systemctl start crawler-master
+# --- Setup Python Environment ---
+python3 -m pip install --upgrade pip
+python3 -m pip install virtualenv
+python3 -m virtualenv venv
+source venv/bin/activate
+
+# --- Install Python Dependencies ---
+# cd src/scripts
+pip install -r requirements.txt
+
+# --- Setup Environment Variables ---
+# Create .env file from template
+cp .env.example .env
+
+# Update .env with actual values (these should be passed from Terraform)
+cat > .env << EOL
+# GCP Configuration
+GCP_PROJECT_ID="${var.gcp_project_id}"
+
+# Pub/Sub Configuration
+CRAWL_TASKS_TOPIC_ID="${var.crawl_tasks_topic_id}"
+CRAWL_TASKS_SUBSCRIPTION_ID="${var.crawl_tasks_subscription_id}"
+INDEX_QUEUE_TOPIC_ID="${var.index_queue_topic_id}"
+
+# Google Cloud Storage
+GCS_BUCKET_NAME="${var.gcs_bucket_name}"
+SEED_FILE_PATH="seeds/start_urls.txt"
+
+# Crawler Configuration
+MAX_DEPTH="2"
+
+# Indexer Configuration
+INDEX_DIR="/data/index"
+
+# Node Identification
+HOSTNAME="master-${INTERNAL_IP}"
+EOL
+
+# --- Setup Systemd Service ---
+sudo tee /etc/systemd/system/crawler-master.service > /dev/null << EOL
+[Unit]
+Description=Web Crawler Master Service
+After=network.target
+
+[Service]
+Type=simple
+User=$(whoami)
+WorkingDirectory=${APP_DIR}/src/scripts
+Environment="PATH=${APP_DIR}/venv/bin"
+ExecStart=${APP_DIR}/venv/bin/python3 master_node.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# --- Enable and Start Service ---
+sudo systemctl daemon-reload
+sudo systemctl enable crawler-master
+sudo systemctl start crawler-master
 
 echo "Finished Master Node Bootstrap Script (GCP)"
 date '+%Y-%m-%d %H:%M:%S'

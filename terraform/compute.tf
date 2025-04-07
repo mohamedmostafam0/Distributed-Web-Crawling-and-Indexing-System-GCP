@@ -196,3 +196,19 @@ resource "google_compute_instance" "indexer" {
     google_project_iam_member.monitoring_writer,
   ]
 }
+
+# Grant Pub/Sub Publisher role (for Master, Crawlers)
+resource "google_project_iam_member" "pubsub_publisher" {
+  project = var.gcp_project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${google_service_account.instance_sa.email}"
+  depends_on = [google_service_account.instance_sa]
+}
+
+# Grant Pub/Sub Subscriber role (for Crawlers, Indexers)
+resource "google_project_iam_member" "pubsub_subscriber" {
+  project = var.gcp_project_id
+  role    = "roles/pubsub.subscriber"
+  member  = "serviceAccount:${google_service_account.instance_sa.email}"
+  depends_on = [google_service_account.instance_sa]
+}
