@@ -9,13 +9,13 @@ variable "gcp_project_id" {
 variable "gcp_region" {
   description = "GCP region for resources."
   type        = string
-  default     = "us-central1"
+  default     = "me-west1"
 }
 
 variable "gcp_zone" {
   description = "GCP zone within the region for zonal resources (like VMs)."
   type        = string
-  default     = "us-central1-a" # Choose a zone within your region
+  default     = "me-west1-a"
 }
 
 variable "project_prefix" {
@@ -57,7 +57,7 @@ variable "crawler_machine_type" {
 variable "indexer_machine_type" {
   description = "GCE machine type for Indexer nodes."
   type        = string
-  default     = "e2-medium" # Potentially needs more memory/CPU for indexing
+  default     = "e2-micro" # Potentially needs more memory/CPU for indexing
 }
 
 variable "crawler_count" {
@@ -127,4 +127,16 @@ variable "crawler_network_tag" {
 variable "indexer_network_tag" {
   type    = string
   default = "indexer-node"
+}
+
+variable "pubsub_topic_name" {
+  type        = string
+  description = "The name of the Pub/Sub topic"
+  default     = "my-new-topic"
+}
+
+variable "pubsub_subscription_name" {
+  type        = string
+  description = "The name of the Pub/Sub subscription"
+  default     = "my-new-subscription"
 }

@@ -63,3 +63,14 @@ output "gcs_bucket_name" {
   description = "Name of the Google Cloud Storage bucket created for crawler data."
   value       = google_storage_bucket.webcrawler_data.name
 }
+
+
+output "pubsub_topic_id" {
+  value       = google_pubsub_topic.my_topic.id
+  description = "The ID of the created Pub/Sub topic"
+}
+
+output "pubsub_subscription_id" {
+  value       = google_pubsub_subscription.my_subscription.id
+  description = "The ID of the created Pub/Sub subscription"
+}

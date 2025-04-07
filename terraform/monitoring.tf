@@ -9,8 +9,7 @@ resource "google_monitoring_notification_channel" "email" {
   type         = "email"
   project      = var.gcp_project_id
   labels = {
-    # Replace with your email address
-    email_address = "your-alert-email@example.com"
+    email_address = "mohamed1401@icloud.com"
   }
   description = "Send alerts via email"
   enabled     = true

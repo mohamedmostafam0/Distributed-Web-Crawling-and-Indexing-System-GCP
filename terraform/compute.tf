@@ -22,11 +22,12 @@ resource "google_project_iam_member" "monitoring_writer" {
 }
 
 # Add roles for specific services (Uncomment and adjust as needed):
-# resource "google_project_iam_member" "pubsub_publisher" {
-#   project = var.gcp_project_id
-#   role    = "roles/pubsub.publisher" # Or subscriber, viewer, etc.
-#   member  = "serviceAccount:${google_service_account.instance_sa.email}"
-# }
+resource "google_project_iam_member" "pubsub_publisher" {
+  project = var.gcp_project_id
+  role    = "roles/pubsub.publisher" # Or subscriber, viewer, etc.
+  member  = "serviceAccount:${google_service_account.instance_sa.email}"
+}
+
 # resource "google_project_iam_member" "storage_object_admin" {
 #   project = var.gcp_project_id
 #   role    = "roles/storage.objectAdmin" # Adjust role as needed
@@ -91,7 +92,7 @@ resource "google_compute_instance" "master" {
     # Ensure SA roles are assigned before instance creation attempts API calls
     google_project_iam_member.logging_writer,
     google_project_iam_member.monitoring_writer,
-    # google_project_iam_member.pubsub_publisher, # Add dependencies for other roles
+    google_project_iam_member.pubsub_publisher, # Add dependencies for other roles
     # google_project_iam_member.storage_object_admin,
   ]
 }
