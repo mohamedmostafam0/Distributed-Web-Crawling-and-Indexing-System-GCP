@@ -73,6 +73,8 @@ resource "google_compute_instance" "master" {
 
   # Use templatefile to render the bootstrap script
   metadata_startup_script = templatefile("${path.module}/scripts/master_bootstrap.sh", {
+      requirements_path  = "src/scripts/requirements.txt"
+
     # Pass any required variables to the script here
   })
 
@@ -121,7 +123,8 @@ resource "google_compute_instance" "crawler" {
   }
 
   metadata_startup_script = templatefile("${path.module}/scripts/crawler_bootstrap.sh", {
-    master_internal_ip = google_compute_instance.master.network_interface[0].network_ip
+    master_internal_ip = google_compute_instance.master.network_interface[0].network_ip,
+      requirements_path  = "src/scripts/requirements.txt"
     # Add other vars (e.g., pubsub topic name)
   })
 
@@ -174,7 +177,8 @@ resource "google_compute_instance" "indexer" {
   }
 
   metadata_startup_script = templatefile("${path.module}/scripts/indexer_bootstrap.sh", {
-    master_internal_ip = google_compute_instance.master.network_interface[0].network_ip
+    master_internal_ip = google_compute_instance.master.network_interface[0].network_ip,
+      requirements_path  = "src/scripts/requirements.txt"
     # Add other vars (e.g., pubsub topic name, storage bucket)
   })
 

@@ -65,12 +65,22 @@ output "gcs_bucket_name" {
 }
 
 
-output "pubsub_topic_id" {
-  value       = google_pubsub_topic.my_topic.id
-  description = "The ID of the created Pub/Sub topic"
+output "crawl_tasks_topic_name" {
+  description = "Name of the Pub/Sub topic for crawl tasks."
+  value       = google_pubsub_topic.crawl_tasks.name
 }
 
-output "pubsub_subscription_id" {
-  value       = google_pubsub_subscription.my_subscription.id
-  description = "The ID of the created Pub/Sub subscription"
+output "index_queue_topic_name" {
+  description = "Name of the Pub/Sub topic for indexing tasks."
+  value       = google_pubsub_topic.index_queue.name
 }
+
+ output "crawl_tasks_subscription_name" {
+   description = "Name of the Pub/Sub subscription for crawl tasks."
+   value       = google_pubsub_subscription.crawl_tasks_sub.name
+ }
+
+ output "index_queue_subscription_name" {
+   description = "Name of the Pub/Sub subscription for indexing tasks."
+   value       = google_pubsub_subscription.index_queue_sub.name
+ }

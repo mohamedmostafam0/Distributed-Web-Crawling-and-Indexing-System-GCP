@@ -34,7 +34,8 @@ python3 -m virtualenv venv
 source venv/bin/activate
 
 # --- Install Python Dependencies ---
-pip install -r src/scripts/requirements.txt
+cd ${APP_DIR}
+pip install -r requirements.txt
 
 # --- Setup Environment Variables ---
 # Create .env file from template

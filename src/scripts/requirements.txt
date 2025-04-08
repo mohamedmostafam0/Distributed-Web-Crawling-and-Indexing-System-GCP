@@ -6,6 +6,9 @@ requests>=2.25.0
 beautifulsoup4>=4.9.0
 python-dotenv>=0.15.0 # For loading .env files
 google-api-core>=2.0.0
+
+
+
 # Add your chosen indexing library here, e.g.:
 # Whoosh>=2.7.0
-# elasticsearch>=7.10.0,<8.0.0
+elasticsearch>=7.10.0,<8.0.0

@@ -19,13 +19,13 @@ sudo apt-get update -y
 # sudo apt-get upgrade -y # Consider if needed, can increase startup time
 sudo apt-get install -y python3 python3-pip git curl wget unzip tree apt-transport-https ca-certificates gnupg
 
-# --- Install Google Cloud CLI (Optional but often useful) ---
-# if ! type gcloud > /dev/null; then
-#     echo "Installing Google Cloud CLI"
-
-#     curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo tee /usr/share/keyrings/cloud.google.gpg > /dev/null
-#     sudo apt-get update -y && sudo apt-get install -y google-cloud-cli
-# fi
+# --- Install Google Cloud SDK (for gsutil) ---
+echo "Installing Google Cloud SDK"
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | 
+    sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | 
+    sudo tee /usr/share/keyrings/cloud.google.gpg > /dev/null
+sudo apt-get update -y && sudo apt-get install -y google-cloud-sdk
 
 # --- Application Setup ---
 # Install Python dependencies
@@ -41,6 +41,10 @@ sudo chown -R $(whoami):$(whoami) ${APP_DIR}
 git clone https://github.com/your-repo/webcrawler.git ${APP_DIR}
 cd ${APP_DIR}
 
+
+echo "Downloading app from GCS..."
+gsutil cp gs://${GCS_BUCKET_NAME}/${APP_ZIP_NAME} .
+
 # --- Setup Python Environment ---
 python3 -m pip install --upgrade pip
 python3 -m pip install virtualenv
@@ -49,7 +53,7 @@ source venv/bin/activate
 
 # --- Install Python Dependencies ---
 # cd src/scripts
-pip install -r requirements.txt
+# pip install -r requirements.txt
 
 # --- Setup Environment Variables ---
 # Create .env file from template
