@@ -12,21 +12,6 @@ from elasticsearch import Elasticsearch
 from dotenv import load_dotenv
 load_dotenv()
 
-# --- Configuration ---
-try:
-    PROJECT_ID = os.environ["GCP_PROJECT_ID"]
-    INDEX_QUEUE_SUBSCRIPTION_ID = os.environ["INDEX_QUEUE_SUBSCRIPTION_ID"]
-    GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
-    ES_HOST = os.environ.get("ES_HOST", "localhost")
-    ES_PORT = int(os.environ.get("ES_PORT", "9200"))
-    ES_INDEX_NAME = os.environ.get("ES_INDEX_NAME", "webcrawler_index")
-except KeyError as e:
-    print(f"Error: Environment variable {e} not set.")
-    exit(1)
-except ValueError as e:
-    print(f"Error: Environment variable ES_PORT must be an integer: {e}")
-    exit(1)
-
 # --- Setup Logging ---
 hostname = os.environ.get("HOSTNAME", "indexer")
 logging.basicConfig(
@@ -35,6 +20,27 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
+# --- Configuration ---
+try:
+    PROJECT_ID = os.environ["GCP_PROJECT_ID"]
+    INDEX_QUEUE_SUBSCRIPTION_ID = os.environ["INDEX_QUEUE_SUBSCRIPTION_ID"]
+    GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
+    ES_HOST = os.environ["ES_HOST"]
+    ES_PORT = int(os.environ["ES_PORT"])
+    ES_USERNAME = os.environ.get("ES_USERNAME")
+    ES_PASSWORD = os.environ.get("ES_PASSWORD")
+    ES_INDEX_NAME = os.environ["ES_INDEX_NAME"]
+except KeyError as e:
+        print(f"Error: Environment variable {e} not set.")
+        exit(1)
+except ValueError as e:
+        print(f"Error: Environment variable ES_PORT must be an integer: {e}")
+        exit(1)
+
+logging.info(f"project id is {PROJECT_ID}, index queue subscription id is {INDEX_QUEUE_SUBSCRIPTION_ID}, gcs bucket name is {GCS_BUCKET_NAME}, es host is {ES_HOST}, es port is {ES_PORT}, es username is {ES_USERNAME}, es password is {ES_PASSWORD}, es index name is {ES_INDEX_NAME}")
+
+
+
 # --- Initialize Clients ---
 subscriber = pubsub_v1.SubscriberClient()
 storage_client = storage.Client()
@@ -42,9 +48,14 @@ subscription_path = subscriber.subscription_path(PROJECT_ID, INDEX_QUEUE_SUBSCRI
 
 # --- Initialize Elasticsearch ---
 try:
+
+    ES_URL = f"https://{ES_USERNAME}:{ES_PASSWORD}@{ES_HOST}"
+
     es_client = Elasticsearch(
-        [{"host": ES_HOST, "port": ES_PORT, "scheme": "http"}]
+        ES_URL,
+        verify_certs=True
     )
+    
     if not es_client.ping():
         raise ValueError("Elasticsearch connection failed")
     logging.info(f"Connected to Elasticsearch at {ES_HOST}:{ES_PORT}")
@@ -98,6 +109,10 @@ def process_indexing_task(message: pubsub_v1.subscriber.message.Message):
         task_data = json.loads(data_str)
 
         url = task_data.get("final_url") or task_data.get("original_url")
+        if not url:
+            logging.warning("No URL found in message.")
+            message.ack()
+            return
         gcs_path = task_data.get("gcs_processed_path")
         content_id = task_data.get("content_id", "N/A")
 

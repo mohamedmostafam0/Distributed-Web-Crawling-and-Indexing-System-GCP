@@ -5,13 +5,11 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # Copy files
-COPY indexer_node.py .
+COPY master_node.py .
 COPY .env .
-COPY requirements.txt .  
+COPY requirements.txt .
 
-
-# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Entrypoint
-CMD ["python", "indexer_node.py"]
+CMD ["python", "master_node.py"]

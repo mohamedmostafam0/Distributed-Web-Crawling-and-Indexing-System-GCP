@@ -28,13 +28,6 @@ resource "google_project_iam_member" "pubsub_publisher" {
   member  = "serviceAccount:${google_service_account.instance_sa.email}"
 }
 
-# resource "google_project_iam_member" "storage_object_admin" {
-#   project = var.gcp_project_id
-#   role    = "roles/storage.objectAdmin" # Adjust role as needed
-#   member  = "serviceAccount:${google_service_account.instance_sa.email}"
-# }
-
-
 # --- Data Disk for Indexers ---
 resource "google_compute_disk" "indexer_data_disk" {
   count   = var.indexer_count
@@ -215,4 +208,72 @@ resource "google_project_iam_member" "pubsub_subscriber" {
   role    = "roles/pubsub.subscriber"
   member  = "serviceAccount:${google_service_account.instance_sa.email}"
   depends_on = [google_service_account.instance_sa]
+}
+
+resource "google_firestore_database" "default" {
+  project     = var.gcp_project_id
+  name         = "${var.project_prefix}-firebase"
+  location_id = var.gcp_region
+  type        = "NATIVE"
+}
+
+
+resource "google_cloud_run_service" "frontend" {
+  name     = "${var.project_prefix}-frontend"
+  location = var.gcp_region
+
+  template {
+    spec {
+      containers {
+        image = "gcr.io/${var.gcp_project_id}/frontend-app"
+      }
+    }
+  }
+
+  traffic {
+    percent         = 100
+    latest_revision = true
+  }
+}
+
+
+resource "google_project_iam_member" "pubsub_subscriber" {
+  project = var.gcp_project_id
+  role    = "roles/pubsub.subscriber"
+  member  = "serviceAccount:${google_service_account.instance_sa.email}"
+}
+
+resource "google_project_iam_member" "storage_writer" {
+  project = var.gcp_project_id
+  role    = "roles/storage.objectAdmin"
+  member  = "serviceAccount:${google_service_account.instance_sa.email}"
+}
+
+
+# ===============================
+# 2. IAM Role Bindings (Expanded)
+# ===============================
+
+resource "google_project_iam_member" "pubsub_publisher" {
+  project = var.gcp_project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${google_service_account.instance_sa.email}"
+}
+
+resource "google_project_iam_member" "pubsub_subscriber" {
+  project = var.gcp_project_id
+  role    = "roles/pubsub.subscriber"
+  member  = "serviceAccount:${google_service_account.instance_sa.email}"
+}
+
+resource "google_project_iam_member" "storage_object_admin" {
+  project = var.gcp_project_id
+  role    = "roles/storage.objectAdmin"
+  member  = "serviceAccount:${google_service_account.instance_sa.email}"
+}
+
+resource "google_project_iam_member" "firestore_user" {
+  project = var.gcp_project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.instance_sa.email}"
 }

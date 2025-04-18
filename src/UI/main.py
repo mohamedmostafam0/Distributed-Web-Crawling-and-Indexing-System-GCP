@@ -1,90 +1,69 @@
-# src/UI/main.py (Modifications)
 import os
 import json
-from flask import Flask, render_template, request, flash # Added flash
-from google.cloud import pubsub_v1
-from google.api_core import exceptions
+import uuid
+from flask import Flask, render_template, request, flash
+from google.cloud import pubsub_v1, storage
 from dotenv import load_dotenv
 
-load_dotenv() # Load .env from src/UI/ or project root if needed
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "default-secret-key") # Needed for flash messages
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "super-secret")
 
-# --- Configuration ---
-PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
-NEW_CRAWL_JOB_TOPIC_ID = os.environ.get("NEW_CRAWL_JOB_TOPIC_ID") # Add this to your .env
+# ENV Variables
+PROJECT_ID = os.environ["GCP_PROJECT_ID"]
+GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
+PUBSUB_TOPIC_ID = os.environ["NEW_CRAWL_JOB_TOPIC_ID"]
 
-# --- Initialize Pub/Sub Publisher ---
-publisher = None
-new_job_topic_path = None
-if PROJECT_ID and NEW_CRAWL_JOB_TOPIC_ID:
-    try:
-        publisher = pubsub_v1.PublisherClient()
-        new_job_topic_path = publisher.topic_path(PROJECT_ID, NEW_CRAWL_JOB_TOPIC_ID)
-        print(f"UI Publisher initialized for topic: {new_job_topic_path}")
-    except Exception as e:
-        print(f"Error initializing UI Pub/Sub Publisher: {e}")
-        publisher = None # Ensure publisher is None if init fails
-else:
-    print("Warning: GCP_PROJECT_ID or NEW_CRAWL_JOB_TOPIC_ID not set. UI cannot submit jobs.")
-
+# Clients
+storage_client = storage.Client()
+publisher = pubsub_v1.PublisherClient()
+topic_path = publisher.topic_path(PROJECT_ID, PUBSUB_TOPIC_ID)
 
 @app.route("/", methods=["GET", "POST"])
 def home():
-    submitted_data = None
     if request.method == "POST":
-        seed_urls_raw = request.form.get("seed_urls")
-        depth_limit_raw = request.form.get("depth_limit")
-        domain_restriction = request.form.get("domain_restriction") # Can be empty
+        seed_urls = [url.strip() for url in request.form.getlist("seed_urls[]") if url.strip()]
+        depth = request.form.get("depth_limit", "1")
+        domain = request.form.get("domain_restriction", "").strip() or None
 
-        seed_urls = [url.strip() for url in seed_urls_raw.splitlines() if url.strip()]
-
-        # Basic validation
         if not seed_urls:
-            flash("Please provide at least one seed URL.", "error")
-            return render_template("index.html", submitted_data=None)
+            flash("Please provide at least one valid seed URL.", "error")
+            return render_template("index.html")
 
         try:
-             depth_limit = int(depth_limit_raw) if depth_limit_raw else 0 # Default depth if empty
+            depth = int(depth)
         except ValueError:
-             flash("Depth limit must be a number.", "error")
-             return render_template("index.html", submitted_data=None)
+            flash("Depth must be a valid integer.", "error")
+            return render_template("index.html")
 
+        task_id = str(uuid.uuid4())
+        gcs_blob_path = f"crawl_tasks/{task_id}.json"
 
         job_data = {
+            "task_id": task_id,
             "seed_urls": seed_urls,
-            "depth_limit": depth_limit,
-            "domain_restriction": domain_restriction or None, # Send null if empty
+            "depth": depth,
+            "domain_restriction": domain
         }
 
-        # --- Publish Job to Pub/Sub ---
-        if publisher and new_job_topic_path:
-            try:
-                data = json.dumps(job_data).encode("utf-8")
-                future = publisher.publish(new_job_topic_path, data)
-                message_id = future.result(timeout=30) # Wait for confirmation
-                print(f"Published new crawl job message ID: {message_id}")
-                flash(f"Crawl job submitted successfully! (Job ID reference: {message_id})", "success")
-                submitted_data = job_data # Keep data to display if needed
-            except exceptions.NotFound:
-                print(f"Error: Pub/Sub topic not found: {new_job_topic_path}")
-                flash("Error submitting job: Topic not found.", "error")
-            except TimeoutError:
-                print(f"Error: Timeout publishing job to {new_job_topic_path}")
-                flash("Error submitting job: Request timed out.", "error")
-            except Exception as e:
-                print(f"Error publishing job: {e}", exc_info=True)
-                flash(f"Error submitting job: {e}", "error")
-        else:
-             print("Error: UI Publisher not initialized. Cannot submit job.")
-             flash("Error submitting job: System not configured.", "error")
+        # Upload to GCS
+        bucket = storage_client.bucket(GCS_BUCKET_NAME)
+        blob = bucket.blob(gcs_blob_path)
+        blob.upload_from_string(json.dumps(job_data), content_type="application/json")
 
-        # Display submitted data even if publish fails, allows user to see what they entered
-        return render_template("index.html", submitted_data=submitted_data)
+        # Publish to Pub/Sub
+        pubsub_msg = {
+            "task_id": task_id,
+            "gcs_path": f"gs://{GCS_BUCKET_NAME}/{gcs_blob_path}"
+        }
+        future = publisher.publish(topic_path, json.dumps(pubsub_msg).encode("utf-8"))
+        print(f"Published message ID: {future.result()}")
+        
+        flash(f"Crawl job submitted. Task ID: {task_id}", "success")
+        return render_template("index.html", submitted_data=job_data)
 
-    return render_template("index.html", submitted_data=None)
+    return render_template("index.html")
 
 if __name__ == "__main__":
-    # Set host='0.0.0.0' to allow external connections if running in a container/VM
     app.run(debug=True, host='0.0.0.0', port=5000)

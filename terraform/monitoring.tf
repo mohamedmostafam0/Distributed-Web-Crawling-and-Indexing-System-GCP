@@ -21,6 +21,12 @@ resource "google_monitoring_alert_policy" "master_cpu_high" {
   display_name = "${var.project_prefix}-master-cpu-high"
   project      = var.gcp_project_id
   combiner     = "OR" # Condition combiner: OR / AND
+    http_check {
+    port         = "8080"
+    path         = "/health"
+    use_ssl      = true
+    validate_ssl = true
+  }
   conditions {
     display_name = "Master CPU Utilization >= 80% for 10m"
     condition_threshold {
@@ -62,6 +68,81 @@ resource "google_monitoring_alert_policy" "master_cpu_high" {
   depends_on = [google_compute_instance.master]
 }
 
+resource "google_monitoring_uptime_check_config" "crawler_health" {
+  count        = var.crawler_count
+  display_name = "${var.project_prefix}-crawler-${count.index + 1}-health-check"
+  timeout      = "10s"
+  period       = "60s"
+
+  http_check {
+    port         = "8080"
+    path         = "/health"
+    use_ssl      = true
+    validate_ssl = true
+  }
+
+  monitored_resource {
+    type = "uptime_url"
+    labels = {
+      host = google_compute_instance.crawler[count.index].network_interface[0].access_config[0].nat_ip
+    }
+  }
+  notification_channels = [
+    google_monitoring_notification_channel.email.id
+  ]
+
+    documentation {
+    content = "The CPU utilization on the crawler node (${google_compute_instance.crawler.name}) has exceeded 80%."
+    mime_type = "text/markdown"
+  }
+
+  user_labels = merge(var.common_labels, {
+     severity = "warning",
+     role     = "crawler"
+  })
+
+  depends_on = [google_compute_instance.crawler]
+
+}
+
+
+resource "google_monitoring_uptime_check_config" "indexer_health" {
+  count        = var.indexer_count
+  display_name = "${var.project_prefix}-indexer-${count.index + 1}-health-check"
+  timeout      = "10s"
+  period       = "60s"
+
+  http_check {
+    port         = "8080"
+    path         = "/health"
+    use_ssl      = true
+    validate_ssl = true
+  }
+
+  monitored_resource {
+    type = "uptime_url"
+    labels = {
+      host = google_compute_instance.indexer[count.index].network_interface[0].access_config[0].nat_ip
+    }
+  }
+  notification_channels = [
+    google_monitoring_notification_channel.email.id
+  ]
+
+    documentation {
+    content = "The CPU utilization on the indexer node (${google_compute_instance.indexer.name}) has exceeded 80%."
+    mime_type = "text/markdown"
+  }
+
+  user_labels = merge(var.common_labels, {
+     severity = "warning",
+     role     = "indexer"
+  })
+
+  depends_on = [google_compute_instance.indexer]
+}
+
+
 # --- TODO: Add similar Alert Policies for Crawlers and Indexers ---
 # You would iterate using count or for_each based on the instance resources.
 # The filter would need to target the specific instance IDs or use group filters if using MIGs.
@@ -76,4 +157,15 @@ resource "google_monitoring_alert_policy" "master_cpu_high" {
 #   notification_channels = [google_monitoring_notification_channel.email.id]
 #   user_labels = { severity = "warning", role = "crawler" }
 # }
+
+
+
+
+
+
+
+# ==========================================
+# 3. Stackdriver Monitoring + Alert Policies
+# ==========================================
+
 

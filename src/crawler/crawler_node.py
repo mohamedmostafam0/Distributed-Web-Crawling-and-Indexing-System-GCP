@@ -14,15 +14,20 @@ from google.api_core import exceptions
 from concurrent.futures import TimeoutError
 from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .env file if present
+
+import re
+
+
 # --- Configuration ---
 try:
     PROJECT_ID = os.environ["GCP_PROJECT_ID"]
-    CRAWL_TASKS_SUBSCRIPTION_ID = os.environ["CRAWL_TASKS_SUBSCRIPTION_ID"] # Subscribed to Master's tasks
     INDEX_QUEUE_TOPIC_ID = os.environ["INDEX_QUEUE_TOPIC_ID"] # Topic to send data for indexing
-    # Optional: Topic to publish newly found URLs back for crawling
-    NEW_URL_TASKS_TOPIC_ID = os.environ.get("NEW_URL_TASKS_TOPIC_ID", os.environ.get("CRAWL_TASKS_TOPIC_ID"))
+    NEW_CRAWL_JOB_SUBSCRIPTION_ID = os.environ["NEW_CRAWL_JOB_SUBSCRIPTION_ID"] # Subscribed to Master's tasks
+    NEW_URL_TASKS_TOPIC_ID = os.environ["NEW_URL_TASKS_TOPIC_ID"]
+
     GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
-    MAX_DEPTH = int(os.environ.get("MAX_DEPTH", "2")) # Max crawl depth
+    MAX_DEPTH = int(os.environ["MAX_DEPTH"])
+    
 except KeyError as e:
     print(f"Error: Environment variable {e} not set.")
     exit(1)
@@ -45,7 +50,7 @@ subscriber = pubsub_v1.SubscriberClient()
 publisher = pubsub_v1.PublisherClient()
 storage_client = storage.Client()
 
-subscription_path = subscriber.subscription_path(PROJECT_ID, CRAWL_TASKS_SUBSCRIPTION_ID)
+subscription_path = subscriber.subscription_path(PROJECT_ID, NEW_CRAWL_JOB_SUBSCRIPTION_ID)
 index_topic_path = publisher.topic_path(PROJECT_ID, INDEX_QUEUE_TOPIC_ID)
 new_url_topic_path = publisher.topic_path(PROJECT_ID, NEW_URL_TASKS_TOPIC_ID)
 
@@ -55,6 +60,14 @@ REQUESTS_TIMEOUT = 10 # Seconds for HTTP requests
 POLITE_DELAY = 1 # Seconds between requests to the same domain (implement proper domain tracking)
 USER_AGENT = "MyDistributedCrawler/1.0 (+http://example.com/botinfo)" # Be a good bot!
 
+
+seen_urls = set()
+
+def normalize_url(url):
+    """Normalize URLs to avoid recrawling duplicates (e.g., remove fragments, trailing slashes)."""
+    parsed = urlparse(url)
+    normalized = parsed._replace(fragment="", path=re.sub(r'/$', '', parsed.path)).geturl()
+    return normalized.lower()
 
 # --- Functions ---
 def save_to_gcs(bucket_name, blob_path, data, content_type):
@@ -75,7 +88,7 @@ def publish_message(topic_path, message_data):
     try:
         future = publisher.publish(topic_path, data)
         future.result(timeout=30) # Wait for publish confirmation
-        # logging.debug(f"Published message to {topic_path}: {message_data.get('task_id') or message_data.get('url')}")
+        logging.debug(f"Published message to {topic_path}: {message_data.get('task_id') or message_data.get('url')}")
         return True
     except exceptions.NotFound:
         logging.error(f"Pub/Sub topic {topic_path} not found.")
@@ -92,6 +105,20 @@ def process_crawl_task(message: pubsub_v1.subscriber.message.Message):
         url = task_data.get("url")
         task_id = task_data.get("task_id", "N/A")
         depth = task_data.get("depth", 0)
+        depth = int(depth)  # Ensure integer
+        domain_restriction = task_data.get("domain_restriction")
+
+        if not url or not url.startswith('http'):
+            logging.warning(f"Received invalid task data (missing/invalid URL): {data_str}")
+            message.ack()  # Skip invalid
+            return
+        
+        normalized_url = normalize_url(url)
+        if normalized_url in seen_urls:
+            logging.info(f"Skipping already seen URL: {normalized_url}")
+            message.ack()
+            return
+        seen_urls.add(normalized_url)
 
         if not url or not url.startswith('http'):
             logging.warning(f"Received invalid task data (missing/invalid URL): {data_str}")
@@ -189,7 +216,18 @@ def process_crawl_task(message: pubsub_v1.subscriber.message.Message):
                     if parsed_new_url.scheme in ['http', 'https'] and parsed_new_url.netloc:
                         # TODO: Add domain restrictions if needed
                         # TODO: Add check for already seen/crawled URLs to avoid loops/redundancy
-                        publish_message(new_url_topic_path, {"url": new_url, "depth": depth + 1})
+                        normalized_new_url = normalize_url(new_url)
+                        if normalized_new_url in seen_urls:
+                            continue
+                        if domain_restriction and domain_restriction not in parsed_new_url.netloc:
+                            continue
+                        seen_urls.add(normalized_new_url)
+                        publish_message(new_url_topic_path, {
+                            "url": normalized_new_url,
+                            "depth": depth + 1,
+                            "domain_restriction": domain_restriction,
+                            "source_task_id": task_id
+                        })
                         new_urls_found +=1
                 logging.info(f"Found and published {new_urls_found} new URLs from {final_url}")
 
