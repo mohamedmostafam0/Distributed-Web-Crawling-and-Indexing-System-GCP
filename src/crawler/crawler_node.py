@@ -6,6 +6,7 @@ import time
 import json
 import uuid
 import requests
+from datetime import datetime
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from google.cloud import pubsub_v1
@@ -24,10 +25,10 @@ try:
     INDEX_QUEUE_TOPIC_ID = os.environ["INDEX_QUEUE_TOPIC_ID"] # Topic to send data for indexing
     NEW_CRAWL_JOB_SUBSCRIPTION_ID = os.environ["NEW_CRAWL_JOB_SUBSCRIPTION_ID"] # Subscribed to Master's tasks
     NEW_URL_TASKS_TOPIC_ID = os.environ["NEW_URL_TASKS_TOPIC_ID"]
-
     GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
     MAX_DEPTH = int(os.environ["MAX_DEPTH"])
-    
+    METRICS_TOPIC_ID = os.environ.get("METRICS_TOPIC_ID")
+
 except KeyError as e:
     print(f"Error: Environment variable {e} not set.")
     exit(1)
@@ -53,6 +54,7 @@ storage_client = storage.Client()
 subscription_path = subscriber.subscription_path(PROJECT_ID, NEW_CRAWL_JOB_SUBSCRIPTION_ID)
 index_topic_path = publisher.topic_path(PROJECT_ID, INDEX_QUEUE_TOPIC_ID)
 new_url_topic_path = publisher.topic_path(PROJECT_ID, NEW_URL_TASKS_TOPIC_ID)
+metrics_topic_path = publisher.topic_path(PROJECT_ID, METRICS_TOPIC_ID)  
 
 
 # --- Constants ---
@@ -96,6 +98,48 @@ def publish_message(topic_path, message_data):
     except Exception as e:
         logging.error(f"Failed to publish message to {topic_path}: {e}")
         return False
+
+
+def publish_new_urls_to_master(new_urls, domain_restriction, source_task_id):
+    if not new_urls:
+        return
+    new_task_id = str(uuid.uuid4())
+    timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%S')
+    gcs_blob_path = f"new_tasks/{new_task_id}_{timestamp}.json"
+
+    message_data = {
+        "seed_urls": new_urls,
+        "depth": 0,
+        "domain_restriction": domain_restriction
+    }
+
+    # Save message_data to GCS
+    bucket = storage_client.bucket(GCS_BUCKET_NAME)
+    blob = bucket.blob(gcs_blob_path)
+    blob.upload_from_string(json.dumps(message_data), content_type="application/json")
+    logging.info(f"Saved new URL batch to gs://{GCS_BUCKET_NAME}/{gcs_blob_path}")
+
+    # Now publish to UI-Master so master can pick it up
+    pubsub_msg = {
+        "task_id": new_task_id,
+        "gcs_path": f"gs://{GCS_BUCKET_NAME}/{gcs_blob_path}"
+    }
+
+    publish_message(new_url_topic_path, pubsub_msg)
+    logging.info(f"Published new crawl job task_id={new_task_id} to master")
+
+# --- New: publish crawler metrics ---
+def publish_crawler_metrics(event_type, url=None, extra=None):
+    metrics_message = {
+        "node_type": "crawler",
+        "event": event_type,
+        "url": url,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+    if extra:
+        metrics_message.update(extra)
+    publish_message(metrics_topic_path, metrics_message)
+
 
 def process_crawl_task(message: pubsub_v1.subscriber.message.Message):
     """Callback function to handle incoming crawl task messages."""
@@ -201,36 +245,34 @@ def process_crawl_task(message: pubsub_v1.subscriber.message.Message):
                  message.nack() # Let Pub/Sub handle retry
                  return
 
+            publish_crawler_metrics("url_crawled", url=url)
+
             # --- Extract and Publish New URLs (if depth allows) ---
+
             if depth < MAX_DEPTH:
                 new_urls_found = 0
+                new_urls = []
+
                 links = soup.find_all('a', href=True)
                 for link in links:
                     href = link['href']
-                    # TODO: Implement better filtering (ignore javascript:, mailto:, fragments, etc.)
-                    # TODO: Respect nofollow attributes
-                    new_url = urljoin(final_url, href) # Handle relative URLs
+                    new_url = urljoin(final_url, href)
                     parsed_new_url = urlparse(new_url)
 
-                    # Basic validation: only crawl http/https, ensure it's a valid structure
                     if parsed_new_url.scheme in ['http', 'https'] and parsed_new_url.netloc:
-                        # TODO: Add domain restrictions if needed
-                        # TODO: Add check for already seen/crawled URLs to avoid loops/redundancy
                         normalized_new_url = normalize_url(new_url)
                         if normalized_new_url in seen_urls:
                             continue
                         if domain_restriction and domain_restriction not in parsed_new_url.netloc:
                             continue
                         seen_urls.add(normalized_new_url)
-                        publish_message(new_url_topic_path, {
-                            "url": normalized_new_url,
-                            "depth": depth + 1,
-                            "domain_restriction": domain_restriction,
-                            "source_task_id": task_id
-                        })
-                        new_urls_found +=1
-                logging.info(f"Found and published {new_urls_found} new URLs from {final_url}")
+                        new_urls.append(normalized_new_url)
+                        new_urls_found += 1
 
+                logging.info(f"Found {new_urls_found} new URLs from {final_url}")
+                publish_new_urls_to_master(new_urls, domain_restriction, task_id)
+                publish_crawler_metrics("new_urls_found", extra={"count": len(new_urls)})
+                
             logging.info(f"Successfully processed and queued for indexing: {final_url}")
             message.ack() # Acknowledge the original task message ONLY after success
 

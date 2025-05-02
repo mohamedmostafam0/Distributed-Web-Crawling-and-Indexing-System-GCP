@@ -1,287 +1,140 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-gray-100">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Web Crawler Control Panel</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Distributed Crawler UI</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
       rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/heroicons/2.1.3/24/outline/heroicons.min.css"
     />
-    <style>
-      /* Simple transition for flash messages */
-      .flash-message {
-        opacity: 1;
-        transition: opacity 0.5s ease-out;
-      }
-      .flash-message.fade-out {
-        opacity: 0;
-      }
-      /* Style scrollbars for a cleaner look (optional) */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #f1f1f1;
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1; /* slate-300 */
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8; /* slate-400 */
-      }
-    </style>
   </head>
-  <body class="h-full flex flex-col">
-    <header class="bg-indigo-700 shadow-md">
-      <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex items-center justify-between h-16">
-          <div class="flex items-center">
-            <div
-              class="flex-shrink-0 text-white text-xl font-bold flex items-center gap-2"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke-width="1.5"
-                stroke="currentColor"
-                class="w-6 h-6"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A11.978 11.978 0 0 1 12 15c-2.998 0-5.74-1.1-7.843-2.918m15.686-2.253A8.959 8.959 0 0 0 3 12c0-.778.099-1.533.284-2.253m0 0A11.978 11.978 0 0 0 12 9c2.998 0 5.74 1.1 7.843 2.918"
-                />
-              </svg>
-              Crawler Control
-            </div>
-          </div>
-        </div>
-      </nav>
-    </header>
+  <body class="bg-light">
+    <div class="container mt-4">
+      <h1 class="mb-4">Distributed Crawler Dashboard</h1>
 
-    <main class="flex-grow overflow-y-auto p-6 lg:p-10 bg-gray-100">
-      <div class="max-w-4xl mx-auto">
-        {% with messages = get_flashed_messages(with_categories=true) %} {% if
-        messages %}
-        <div class="mb-6 space-y-3">
-          {% for category, message in messages %}
-          <div
-            class="flash-message p-4 rounded-md border {{ 'bg-red-100 border-red-300 text-red-800' if category == 'error' else 'bg-green-100 border-green-300 text-green-800' if category == 'success' else 'bg-blue-100 border-blue-300 text-blue-800' }}"
-            role="alert"
-            id="flash-{{ loop.index }}"
-          >
-            <span class="font-medium">{{ category|capitalize }}:</span> {{
-            message }}
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %} {% endwith %}
-
-        <div class="bg-white shadow-lg rounded-lg p-6 sm:p-8">
-          <h1 class="text-2xl font-semibold mb-6 text-gray-800 border-b pb-4">
-            Initiate a New Web Crawl
-          </h1>
-
-          <form method="post" class="space-y-6" id="crawl-form" novalidate>
-            <div class="space-y-3" id="seed-url-container">
-              <label class="block text-sm font-medium leading-6 text-gray-900"
-                >Seed URLs (at least one required)</label
-              >
-              <div class="flex items-center gap-2">
+      <!-- Crawl Submission Form -->
+      <div class="card mb-4">
+        <div class="card-header">Submit a New Crawl Job</div>
+        <div class="card-body">
+          <form method="POST">
+            <div id="url-fields">
+              <div class="input-group mb-2">
                 <input
-                  type="url"
-                  id="seed_url_0"
                   name="seed_urls[]"
-                  placeholder="https://example.com"
-                  class="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 transition duration-150 ease-in-out"
+                  class="form-control"
+                  placeholder="Seed URL"
                   required
                 />
-                <button
-                  type="button"
-                  id="add-seed-url"
-                  aria-label="Add another seed URL"
-                  class="flex-shrink-0 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-2 rounded-full shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    class="w-5 h-5"
-                  >
-                    <path
-                      d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"
-                    />
-                  </svg>
-                </button>
               </div>
             </div>
-
-            <div>
-              <label
-                for="depth_limit"
-                class="block text-sm font-medium leading-6 text-gray-900"
-                >Crawl Depth Limit (Optional)</label
-              >
-              <div class="mt-1">
-                <input
-                  type="number"
-                  id="depth_limit"
-                  name="depth_limit"
-                  placeholder="e.g., 3 (0 or empty means crawl only seed URLs)"
-                  class="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 transition duration-150 ease-in-out"
-                  min="0"
-                />
-                <p class="mt-1 text-xs text-gray-500">
-                  Maximum link depth from seed URLs. Leave empty or 0 to only
-                  process seeds.
-                </p>
-              </div>
+            <button
+              type="button"
+              class="btn btn-secondary mb-3"
+              onclick="addField()"
+            >
+              Add Another URL
+            </button>
+            <div class="mb-2">
+              <input
+                name="depth_limit"
+                type="number"
+                class="form-control"
+                placeholder="Depth Limit (default 1)"
+              />
             </div>
-
-            <div>
-              <label
-                for="domain_restriction"
-                class="block text-sm font-medium leading-6 text-gray-900"
-                >Restrict Crawl to Domain (Optional)</label
-              >
-              <div class="mt-1">
-                <input
-                  type="text"
-                  id="domain_restriction"
-                  name="domain_restriction"
-                  placeholder="e.g., example.com"
-                  class="block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 transition duration-150 ease-in-out"
-                />
-                <p class="mt-1 text-xs text-gray-500">
-                  If set, the crawler will only follow links within this domain.
-                </p>
-              </div>
+            <div class="mb-3">
+              <input
+                name="domain_restriction"
+                type="text"
+                class="form-control"
+                placeholder="Domain Restriction (optional)"
+              />
             </div>
-
-            <div class="pt-4 border-t border-gray-200">
-              <button
-                type="submit"
-                class="w-full sm:w-auto inline-flex justify-center items-center rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 transition duration-150 ease-in-out"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  class="w-5 h-5 mr-2"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z"
-                    clip-rule="evenodd"
-                  />
-                </svg>
-                Start Crawl Job
-              </button>
-            </div>
+            <button type="submit" class="btn btn-primary">Submit Crawl</button>
           </form>
         </div>
-        {% if submitted_data %}
-        <div
-          class="mt-8 p-6 bg-slate-50 border border-slate-200 rounded-lg shadow-sm"
-        >
-          <h2 class="text-lg font-medium text-slate-700 mb-4">
-            Crawl Configuration Submitted:
-          </h2>
-          <ul class="space-y-2 text-sm text-slate-600">
-            <li>
-              <strong class="font-semibold text-slate-800">Seed URLs:</strong>
-              <ul class="list-disc list-inside ml-4 mt-1">
-                {% for url in submitted_data.seed_urls %}
-                <li><code>{{ url }}</code></li>
-                {% endfor %}
-              </ul>
-            </li>
-            <li>
-              <strong class="font-semibold text-slate-800">Depth Limit:</strong>
-              {{ submitted_data.depth_limit if submitted_data.depth_limit is not
-              none else 'N/A (or 0)' }}
-            </li>
-            <li>
-              <strong class="font-semibold text-slate-800"
-                >Domain Restriction:</strong
-              >
-              {{ submitted_data.domain_restriction if
-              submitted_data.domain_restriction else 'None' }}
-            </li>
-          </ul>
-        </div>
-        {% endif %}
       </div>
-    </main>
+
+      <!-- Live Metrics -->
+      <div class="card mb-4">
+        <div class="card-header">Live Metrics</div>
+        <div class="card-body">
+          <div class="row text-center">
+            <div class="col">
+              <h5>URLs Crawled</h5>
+              <p id="urls-crawled" class="fs-4">0</p>
+            </div>
+            <div class="col">
+              <h5>URLs Indexed</h5>
+              <p id="urls-indexed" class="fs-4">0</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Tasks -->
+      <div class="card">
+        <div class="card-header">Active Crawl Tasks</div>
+        <div class="card-body">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Task ID</th>
+                <th>Depth</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tasks-table-body">
+              <!-- Dynamic content -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Download Index -->
+      <div class="text-center mt-4">
+        <a href="/download_index" class="btn btn-success"
+          >Download Final Indexed Data</a
+        >
+      </div>
+    </div>
 
     <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        const addSeedUrlButton = document.getElementById("add-seed-url");
-        const seedUrlContainer = document.getElementById("seed-url-container");
-        let seedUrlCount = 1; // Start counting from 1 for unique IDs
+      function addField() {
+        const field = document.createElement("div");
+        field.className = "input-group mb-2";
+        field.innerHTML =
+          '<input name="seed_urls[]" class="form-control" placeholder="Seed URL" required>';
+        document.getElementById("url-fields").appendChild(field);
+      }
 
-        addSeedUrlButton.addEventListener("click", function () {
-          const newDiv = document.createElement("div");
-          newDiv.classList.add("flex", "items-center", "gap-2"); // Added 'relative' if needed for positioning errors
+      function refreshMetrics() {
+        fetch("/metrics")
+          .then((response) => response.json())
+          .then((data) => {
+            document.getElementById("urls-crawled").textContent =
+              data.metrics.urls_crawled;
+            document.getElementById("urls-indexed").textContent =
+              data.metrics.urls_indexed;
 
-          // No explicit label needed per input, main label covers the group
+            const tableBody = document.getElementById("tasks-table-body");
+            tableBody.innerHTML = "";
+            for (const [task_id, info] of Object.entries(data.tasks)) {
+              const row = document.createElement("tr");
+              row.innerHTML = `
+                    <td>${task_id}</td>
+                    <td>${info.depth}</td>
+                    <td><span class="badge bg-primary">${info.status}</span></td>
+                `;
+              tableBody.appendChild(row);
+            }
+          })
+          .catch((error) => console.error("Error fetching metrics:", error));
+      }
 
-          const newInput = document.createElement("input");
-          newInput.type = "url"; // Use URL type
-          newInput.id = `seed_url_${seedUrlCount}`;
-          newInput.name = "seed_urls[]"; // Use array notation for Flask
-          newInput.placeholder = "https://another-example.org";
-          // Apply Tailwind classes matching the original input for consistency
-          newInput.className =
-            "block w-full rounded-md border-0 py-2 px-3 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 transition duration-150 ease-in-out";
-          newInput.required = true;
-
-          const removeButton = document.createElement("button");
-          removeButton.type = "button";
-          removeButton.setAttribute("aria-label", "Remove this seed URL");
-          // Style the remove button - slightly less prominent than add
-          removeButton.className =
-            "flex-shrink-0 bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-2 rounded-full shadow-sm transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500";
-          removeButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M6.28 5.22a.75.75 0 0 0-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 1 0 1.06 1.06L10 11.06l3.72 3.72a.75.75 0 1 0 1.06-1.06L11.06 10l3.72-3.72a.75.75 0 0 0-1.06-1.06L10 8.94 6.28 5.22Z" /></svg>`; // Use an icon
-
-          removeButton.addEventListener("click", function () {
-            // Prevent removing the last input field if desired
-            // if (seedUrlContainer.querySelectorAll('input[type="url"]').length > 1) {
-            seedUrlContainer.removeChild(newDiv);
-            // } else {
-            //     alert("At least one seed URL is required.");
-            // }
-          });
-
-          // Append new elements
-          newDiv.appendChild(newInput);
-          newDiv.appendChild(removeButton);
-          seedUrlContainer.appendChild(newDiv); // Append the new div to the container
-
-          newInput.focus(); // Focus the newly added input
-          seedUrlCount++;
-        });
-
-        // Optional: Auto-fade out flash messages after a delay
-        const flashMessages = document.querySelectorAll(".flash-message");
-        flashMessages.forEach((flash) => {
-          setTimeout(() => {
-            flash.classList.add("fade-out");
-            // Optionally remove from DOM after fade out
-            setTimeout(() => {
-              if (flash.parentNode) {
-                flash.parentNode.removeChild(flash);
-              }
-            }, 500); // Match CSS transition duration
-          }, 5000); // 5 seconds delay
-        });
-      });
+      setInterval(refreshMetrics, 5000);
+      refreshMetrics(); // initial load
     </script>
   </body>
 </html>

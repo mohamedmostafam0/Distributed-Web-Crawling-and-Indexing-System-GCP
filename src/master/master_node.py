@@ -5,8 +5,7 @@ import logging
 import time
 import json
 import uuid
-from google.cloud import pubsub_v1
-from google.cloud import storage
+from google.cloud import pubsub_v1, storage, monitoring_v3
 from google.api_core import exceptions
 from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .env file if present
@@ -50,6 +49,7 @@ try:
     publisher = pubsub_v1.PublisherClient()
     subscriber = pubsub_v1.SubscriberClient() 
     storage_client = storage.Client()
+    monitoring_client = monitoring_v3.MetricServiceClient()
     crawl_topic_path = publisher.topic_path(PROJECT_ID, CRAWL_TASKS_TOPIC_ID)
     new_job_subscription_path = subscriber.subscription_path(PROJECT_ID, NEW_MASTER_JOB_SUBSCRIPTION_ID)
 except Exception as e:
@@ -57,9 +57,28 @@ except Exception as e:
     exit(1)
 
 
+total_crawled = 0
+total_jobs_received = 0
+
+
+# --- Monitoring Helpers ---
+def publish_metric(metric_name, value):
+    series = monitoring_v3.TimeSeries()
+    series.metric.type = f"custom.googleapis.com/{metric_name}"
+    series.resource.type = "global"
+    point = series.points.add()
+    point.value.int64_value = value
+    point.interval.end_time.seconds = int(time.time())
+    point.interval.end_time.nanos = 0
+
+    project_name = f"projects/{PROJECT_ID}"
+    monitoring_client.create_time_series(request={"name": project_name, "time_series": [series]})
+
+
 # Modify publish_crawl_task to accept parameters
 def publish_crawl_task(url, depth=0, domain_restriction=None, source_job_id=None):
     """Publishes a single URL crawl task to Pub/Sub."""
+    global total_crawled
     task_id = str(uuid.uuid4())
     message_data = {
         "task_id": task_id,
@@ -69,8 +88,11 @@ def publish_crawl_task(url, depth=0, domain_restriction=None, source_job_id=None
         "source_job_id": source_job_id # Optional: Link back to UI job
     }
     data = json.dumps(message_data).encode("utf-8")
+
     try:
         future = publisher.publish(crawl_topic_path, data)
+        total_crawled += 1
+        publish_metric("urls_crawled", total_crawled)
         future.result(timeout=30)
         logging.info(f"Published task {task_id} for URL: {url} (From Job: {source_job_id}, Depth: {depth}, Domain: {domain_restriction})")
         return True
@@ -84,6 +106,7 @@ def publish_crawl_task(url, depth=0, domain_restriction=None, source_job_id=None
 
 # --- Handle Incoming Crawl Job Requests ---
 def handle_new_job(message: pubsub_v1.subscriber.message.Message):
+    global total_jobs_received
     try:
         data_str = message.data.decode("utf-8").strip()
         if not data_str:
@@ -101,7 +124,8 @@ def handle_new_job(message: pubsub_v1.subscriber.message.Message):
 
         task_id = job_meta.get("task_id")
         gcs_path = job_meta.get("gcs_path")
-
+        total_jobs_received += 1
+        publish_metric("crawl_jobs_received", total_jobs_received)
         if not task_id or not gcs_path:
             logging.error("Missing task_id or gcs_path in the message.")
             message.ack()

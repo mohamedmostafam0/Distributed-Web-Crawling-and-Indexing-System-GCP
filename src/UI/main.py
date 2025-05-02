@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import threading
 from flask import Flask, render_template, request, flash
 from google.cloud import pubsub_v1, storage
 from dotenv import load_dotenv
@@ -14,11 +15,45 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "super-secret")
 PROJECT_ID = os.environ["GCP_PROJECT_ID"]
 GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
 PUBSUB_TOPIC_ID = os.environ["NEW_CRAWL_JOB_TOPIC_ID"]
+METRICS_SUBSCRIPTION_ID = os.environ.get("METRICS_SUBSCRIPTION_ID")
 
 # Clients
 storage_client = storage.Client()
 publisher = pubsub_v1.PublisherClient()
 topic_path = publisher.topic_path(PROJECT_ID, PUBSUB_TOPIC_ID)
+subscriber = pubsub_v1.SubscriberClient()
+metrics_subscription_path = subscriber.subscription_path(PROJECT_ID, METRICS_SUBSCRIPTION_ID)
+
+# --- Metrics State ---
+metrics_state = {
+    "urls_crawled": 0,
+    "urls_indexed": 0
+}
+
+# --- Background Metrics Listener ---
+def listen_to_metrics():
+    def callback(message: pubsub_v1.subscriber.message.Message):
+        try:
+            data = json.loads(message.data.decode("utf-8"))
+            event = data.get("event")
+            if event == "url_crawled":
+                metrics_state["urls_crawled"] += 1
+            elif event == "url_indexed":
+                metrics_state["urls_indexed"] += 1
+        except Exception as e:
+            print(f"Error processing metrics message: {e}")
+        finally:
+            message.ack()
+
+    streaming_pull_future = subscriber.subscribe(metrics_subscription_path, callback=callback)
+    try:
+        streaming_pull_future.result()
+    except Exception as e:
+        streaming_pull_future.cancel()
+
+# Start background thread
+threading.Thread(target=listen_to_metrics, daemon=True).start()
+
 
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -29,13 +64,13 @@ def home():
 
         if not seed_urls:
             flash("Please provide at least one valid seed URL.", "error")
-            return render_template("index.html")
+            return render_template("index.html", metrics=metrics_state)
 
         try:
             depth = int(depth)
         except ValueError:
             flash("Depth must be a valid integer.", "error")
-            return render_template("index.html")
+            return render_template("index.html", metrics=metrics_state) 
 
         task_id = str(uuid.uuid4())
         gcs_blob_path = f"crawl_tasks/{task_id}.json"
@@ -61,9 +96,9 @@ def home():
         print(f"Published message ID: {future.result()}")
         
         flash(f"Crawl job submitted. Task ID: {task_id}", "success")
-        return render_template("index.html", submitted_data=job_data)
+        return render_template("index.html", submitted_data=metrics_state)
 
-    return render_template("index.html")
+    return render_template("index.html", metrics=metrics_state)
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5000)
