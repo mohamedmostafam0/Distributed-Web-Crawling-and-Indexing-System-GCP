@@ -2,7 +2,7 @@ import os
 import json
 import uuid
 import threading
-from flask import Flask, render_template, request, flash
+from flask import Flask, render_template, request, flash, jsonify
 from google.cloud import pubsub_v1, storage
 from dotenv import load_dotenv
 
@@ -18,7 +18,7 @@ PUBSUB_TOPIC_ID = os.environ["NEW_CRAWL_JOB_TOPIC_ID"]
 METRICS_SUBSCRIPTION_ID = os.environ.get("METRICS_SUBSCRIPTION_ID")
 
 # Clients
-storage_client = storage.Client()
+storage_client = storage.Client(project=PROJECT_ID)
 publisher = pubsub_v1.PublisherClient()
 topic_path = publisher.topic_path(PROJECT_ID, PUBSUB_TOPIC_ID)
 subscriber = pubsub_v1.SubscriberClient()
@@ -30,18 +30,6 @@ metrics_state = {
     "urls_indexed": 0
 }
 
-
-def listen_health_status():
-    subscriber = pubsub_v1.SubscriberClient()
-    sub_path = subscriber.subscription_path(PROJECT_ID, "health-monitor-ui")
-    
-    def callback(msg):
-        data = json.loads(msg.data.decode("utf-8"))
-        print(f"Node {data['hostname']} ({data['node_type']}) is {data['status']} at {data['timestamp']}")
-        msg.ack()
-
-    subscriber.subscribe(sub_path, callback=callback)
-    
 # --- Background Metrics Listener ---
 def listen_to_metrics():
     def callback(message: pubsub_v1.subscriber.message.Message):
@@ -65,7 +53,6 @@ def listen_to_metrics():
 
 # Start background thread
 threading.Thread(target=listen_to_metrics, daemon=True).start()
-
 
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -108,9 +95,48 @@ def home():
         print(f"Published message ID: {future.result()}")
         
         flash(f"Crawl job submitted. Task ID: {task_id}", "success")
-        return render_template("index.html", submitted_data=metrics_state)
+        return render_template("index.html", metrics=metrics_state)
 
     return render_template("index.html", metrics=metrics_state)
 
+@app.route("/search/urls", methods=["GET"])
+def search_urls():
+    query = request.args.get("q", "")
+    if not query:
+        return jsonify({"error": "No search query provided"}), 400
+    
+    # TODO: Implement URL search logic
+    # For now, return mock data
+    return jsonify({
+        "results": [
+            {"url": "https://example.com", "last_crawled": "2024-05-02"},
+            {"url": "https://example.org", "last_crawled": "2024-05-01"}
+        ]
+    })
+
+@app.route("/search/index", methods=["GET"])
+def search_index():
+    query = request.args.get("q", "")
+    if not query:
+        return jsonify({"error": "No search query provided"}), 400
+    
+    # TODO: Implement index search logic
+    # For now, return mock data
+    return jsonify({
+        "results": [
+            {"url": "https://example.com", "title": "Example Page", "snippet": "This is an example page..."},
+            {"url": "https://example.org", "title": "Another Page", "snippet": "This is another example..."}
+        ]
+    })
+
+@app.route("/health", methods=["GET"])
+def health_check():
+    # TODO: Implement actual health checks
+    return jsonify({
+        "crawler": {"status": "running", "last_check": "2024-05-02T12:00:00Z"},
+        "indexer": {"status": "running", "last_check": "2024-05-02T12:00:00Z"},
+        "storage": {"status": "connected", "last_check": "2024-05-02T12:00:00Z"}
+    })
+
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)

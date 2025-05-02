@@ -15,7 +15,9 @@ from google.api_core import exceptions
 from concurrent.futures import TimeoutError
 from dotenv import load_dotenv
 load_dotenv()  # Load environment variables from .env file if present
-
+import socket
+from datetime import datetime
+import threading
 import re
 
 
@@ -65,6 +67,22 @@ USER_AGENT = "MyDistributedCrawler/1.0 (+http://example.com/botinfo)" # Be a goo
 
 seen_urls = set()
 
+def publish_health_status():
+    health_msg = {
+        "node_type": "crawler",
+        "hostname": socket.gethostname(),
+        "status": "online",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    publish_message(metrics_topic_path, health_msg)
+
+def start_health_heartbeat():
+    def loop():
+        while True:
+            publish_health_status()
+            time.sleep(30)
+    threading.Thread(target=loop, daemon=True).start()
+    
 def normalize_url(url):
     """Normalize URLs to avoid recrawling duplicates (e.g., remove fragments, trailing slashes)."""
     parsed = urlparse(url)
@@ -297,6 +315,7 @@ def main():
     logging.info(f"Publishing new URLs to topic: {new_url_topic_path}")
     logging.info(f"Storing data in GCS Bucket: {GCS_BUCKET_NAME}")
     logging.info(f"Max Crawl Depth: {MAX_DEPTH}")
+    start_health_heartbeat()
 
     # --- Start Subscriber ---
     streaming_pull_future = subscriber.subscribe(subscription_path, callback=process_crawl_task)

@@ -10,6 +10,10 @@ from google.api_core import exceptions
 from concurrent.futures import TimeoutError
 from elasticsearch import Elasticsearch
 from dotenv import load_dotenv
+import socket
+from datetime import datetime
+import threading
+
 load_dotenv()
 
 # --- Setup Logging ---
@@ -74,6 +78,23 @@ try:
 except Exception as e:
     logging.error(f"Failed to initialize Elasticsearch client: {e}", exc_info=True)
     exit(1)
+
+def publish_health_status():
+    health_msg = {
+        "node_type": "crawler",
+        "hostname": socket.gethostname(),
+        "status": "online",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    publish_message(metrics_topic_path, health_msg)
+
+def start_health_heartbeat():
+    def loop():
+        while True:
+            publish_health_status()
+            time.sleep(30)
+    threading.Thread(target=loop, daemon=True).start()
+
 
 # --- Download Text from GCS ---
 def download_from_gcs(bucket_name, blob_path):
@@ -156,7 +177,7 @@ def main():
     logging.info(f"Listening on: {subscription_path}")
     logging.info(f"GCS Bucket: {GCS_BUCKET_NAME}")
     logging.info(f"Elasticsearch: {ES_HOST}:{ES_PORT}, Index: {ES_INDEX_NAME}")
-
+    start_health_heartbeat()
     streaming_pull_future = subscriber.subscribe(subscription_path, callback=process_indexing_task)
     try:
         streaming_pull_future.result()
