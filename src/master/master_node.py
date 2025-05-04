@@ -38,6 +38,10 @@ class MasterNode:
             self.CRAWL_TASKS_TOPIC_ID = os.environ["CRAWL_TASKS_TOPIC_ID"]
             self.GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
             self.NEW_MASTER_JOB_SUBSCRIPTION_ID = os.environ["NEW_MASTER_JOB_SUBSCRIPTION_ID"]
+            self.METRICS_TOPIC_ID = os.environ["METRICS_TOPIC_ID"]
+            self.HEALTH_METRICS_TOPIC_ID = os.environ["HEALTH_METRICS_TOPIC_ID"]
+            self.PROGRESS_METRICS_TOPIC_ID = os.environ["PROGRESS_METRICS_TOPIC_ID"]
+
         except KeyError as e:
             logging.error(f"Missing environment variable: {e}")
             exit(1)
@@ -49,7 +53,8 @@ class MasterNode:
             "GCP_PROJECT_ID": self.PROJECT_ID,
             "CRAWL_TASKS_TOPIC_ID": self.CRAWL_TASKS_TOPIC_ID,
             "GCS_BUCKET_NAME": self.GCS_BUCKET_NAME,
-            "NEW_MASTER_JOB_SUBSCRIPTION_ID": self.NEW_MASTER_JOB_SUBSCRIPTION_ID
+            "NEW_MASTER_JOB_SUBSCRIPTION_ID": self.NEW_MASTER_JOB_SUBSCRIPTION_ID,
+            "METRICS_TOPIC_ID": self.METRICS_TOPIC_ID
         }
         missing = [k for k, v in required.items() if not v]
         if missing:
@@ -66,18 +71,33 @@ class MasterNode:
             self.monitoring_client = monitoring_v3.MetricServiceClient()
             self.crawl_topic_path = self.publisher.topic_path(self.PROJECT_ID, self.CRAWL_TASKS_TOPIC_ID)
             self.subscription_path = self.subscriber.subscription_path(self.PROJECT_ID, self.NEW_MASTER_JOB_SUBSCRIPTION_ID)
+            self.metrics_topic_path = self.publisher.topic_path(self.PROJECT_ID, self.METRICS_TOPIC_ID)
+            self.health_topic_path = self.publisher.topic_path(self.PROJECT_ID, self.HEALTH_METRICS_TOPIC_ID)
+            self.progress_topic_path = self.publisher.topic_path(self.PROJECT_ID, self.PROGRESS_METRICS_TOPIC_ID)
+
         except Exception as e:
             logging.error(f"Failed to initialize Google Cloud clients: {e}", exc_info=True)
             exit(1)
 
     def publish_health_status(self):
         health_msg = {
-            "node_type": "crawler",
+            "node_type": "master",
             "hostname": socket.gethostname(),
             "status": "online",
             "timestamp": datetime.utcnow().isoformat()
         }
-        self.publish_message(metrics_topic_path, health_msg)
+        self.publish_message(self.health_topic_path, health_msg)
+
+    def publish_progress_metric(self, event_type, extra=None):
+        message = {
+            "node_type": "master",
+            "event": event_type,
+            "hostname": socket.gethostname(),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        if extra:
+            message.update(extra)
+        self.publish_message(self.progress_topic_path, message)
 
     def start_health_heartbeat(self):
         def loop():
@@ -86,24 +106,37 @@ class MasterNode:
                 time.sleep(30)
         threading.Thread(target=loop, daemon=True).start()
 
-    # --- Monitoring Helpers ---
-    def publish_metric(metric_name, value):
-        series = monitoring_v3.TimeSeries()
-        series.metric.type = f"custom.googleapis.com/{metric_name}"
-        series.resource.type = "global"
-        point = series.points.add()
-        point.value.int64_value = value
-        point.interval.end_time.seconds = int(time.time())
-        point.interval.end_time.nanos = 0
+    def publish_message(self, topic_path, message_data):
+        data = json.dumps(message_data).encode("utf-8")
+        try:
+            future = self.publisher.publish(topic_path, data)
+            future.result(timeout=30)
+            logging.debug(f"Published message to {topic_path}: {message_data}")
+            return True
+        except exceptions.NotFound:
+            logging.error(f"Pub/Sub topic {topic_path} not found.")
+            return False
+        except Exception as e:
+            logging.error(f"Failed to publish message to {topic_path}: {e}")
+            return False
 
-        project_name = f"projects/{PROJECT_ID}"
-        self.monitoring_client.create_time_series(request={"name": project_name, "time_series": [series]})
+    # --- Monitoring Helpers ---
+    # def publish_metric(self, metric_name, value):
+    #     series = monitoring_v3.TimeSeries()
+    #     series.metric.type = f"custom.googleapis.com/{metric_name}"
+    #     series.resource.type = "global"
+    #     point = series.points.add()
+    #     point.value.int64_value = value
+    #     point.interval.end_time.seconds = int(time.time())
+    #     point.interval.end_time.nanos = 0
+
+    #     project_name = f"projects/{self.PROJECT_ID}"
+    #     self.monitoring_client.create_time_series(request={"name": project_name, "time_series": [series]})
 
 
     # Modify publish_crawl_task to accept parameters
-    def publish_crawl_task(url, depth=0, domain_restriction=None, source_job_id=None):
+    def publish_crawl_task(self, url, depth=0, domain_restriction=None, source_job_id=None):
         """Publishes a single URL crawl task to Pub/Sub."""
-        global total_crawled
         task_id = str(uuid.uuid4())
         message_data = {
             "task_id": task_id,
@@ -115,9 +148,9 @@ class MasterNode:
         data = json.dumps(message_data).encode("utf-8")
 
         try:
-            future = publisher.publish(self.crawl_topic_path, data)
-            total_crawled += 1
-            publish_metric("urls_crawled", total_crawled)
+            future = self.publisher.publish(self.crawl_topic_path, data)
+            self.total_crawled += 1
+            # self.publish_metric("urls_crawled", self.total_crawled)
             future.result(timeout=30)
             logging.info(f"Published task {task_id} for URL: {url} (From Job: {source_job_id}, Depth: {depth}, Domain: {domain_restriction})")
             return True
@@ -138,8 +171,6 @@ class MasterNode:
                 logging.error("Received empty message from Pub/Sub.")
                 message.ack()
                 return
-
-
             try:
                 job_meta = json.loads(data_str)
             except json.JSONDecodeError as e:
@@ -149,8 +180,10 @@ class MasterNode:
 
             task_id = job_meta.get("task_id")
             gcs_path = job_meta.get("gcs_path")
-            total_jobs_received += 1
-            self.publish_metric("crawl_jobs_received", self.total_jobs_received)
+            self.total_jobs_received += 1
+            # self.publish_metric("crawl_jobs_received", self.total_jobs_received)
+            self.publish_progress_metric("job_received", extra={"job_id": task_id})
+
             if not task_id or not gcs_path:
                 logging.error("Missing task_id or gcs_path in the message.")
                 message.ack()
@@ -183,7 +216,7 @@ class MasterNode:
 
             job_data = json.loads(blob_content)
             seed_urls = job_data.get("seed_urls", [])
-            depth_limit = job_data.get("depth", 1)
+            depth_limit = job_data.get("depth")
             domain_restriction = job_data.get("domain_restriction")
 
             if not isinstance(seed_urls, list) or not seed_urls:
@@ -192,14 +225,14 @@ class MasterNode:
                 return
 
             for url in seed_urls:
-                publish_crawl_task(
+                self.publish_crawl_task(
                     url,
                     depth=0,
                     domain_restriction=domain_restriction,
                     source_job_id=task_id
                 )
                 time.sleep(0.05)
-
+            self.publish_progress_metric("url_scheduled", extra={"url": url, "job_id": task_id})
             logging.info(f"Published crawl tasks for job {task_id}")
             message.ack()
 
@@ -213,40 +246,39 @@ class MasterNode:
 
 
 # --- Main Execution ---
-def run(self):
-    logging.info("Master node starting...")
-    logging.info(f"Project ID: {PROJECT_ID}")
-    logging.info(f"Publishing tasks to Topic: {crawl_topic_path}")
-    logging.info(f"Listening for jobs on: {new_job_subscription_path}")
-    self.start_health_heartbeat()
+    def run(self):
+        logging.info("Master node starting...")
+        logging.info(f"Project ID: {self.PROJECT_ID}")
+        logging.info(f"Publishing tasks to Topic: {self.crawl_topic_path}")
+        logging.info(f"Listening for jobs on: {self.subscription_path}")
+        self.start_health_heartbeat()
 
-    try:
-        future = None
-        if new_job_subscription_path:
-            future = subscriber.subscribe(new_job_subscription_path, callback=handle_new_job)
-            logging.info(f"Listening for new crawl job submissions on {new_job_subscription_path}...")
+        try:
+            future = None
+            if self.subscription_path:
+                future = self.subscriber.subscribe(self.subscription_path, callback=self.handle_new_job)
+                logging.info(f"Listening for new crawl job submissions on {self.subscription_path}...")
 
-            # Keep the process running
-            future.result()
-        else:
-            logging.warning("No subscription path provided. Master node will not subscribe to any jobs.")
+                # Keep the process running
+                future.result()
+            else:
+                logging.warning("No subscription path provided. Master node will not subscribe to any jobs.")
 
-    except KeyboardInterrupt:
-        logging.info("KeyboardInterrupt received. Shutting down gracefully...")
-        if future:
-            future.cancel()
-            future.result()
-        logging.info("Master node shut down successfully.")
+        except KeyboardInterrupt:
+            logging.info("KeyboardInterrupt received. Shutting down gracefully...")
+            if future:
+                future.cancel()
+                future.result()
+            logging.info("Master node shut down successfully.")
 
-    except Exception as e:
-        logging.error(f"Unexpected error in main loop: {e}", exc_info=True)
-        if future:
-            future.cancel()
-            future.result()
+        except Exception as e:
+            logging.error(f"Unexpected error in main loop: {e}", exc_info=True)
+            if future:
+                future.cancel()
+                future.result()
 
 
 
 if __name__ == "__main__":
     node = MasterNode()
     node.run()
-    main()

@@ -2,139 +2,1887 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Distributed Crawler UI</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Web Crawling System</title>
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
-  </head>
-  <body class="bg-light">
-    <div class="container mt-4">
-      <h1 class="mb-4">Distributed Crawler Dashboard</h1>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary-color: #4361ee;
+        --secondary-color: #3f37c9;
+        --accent-color: #4cc9f0;
+        --success-color: #2ec4b6;
+        --warning-color: #ff9f1c;
+        --danger-color: #e71d36;
+        --light-color: #f8f9fa;
+        --dark-color: #212529;
+        --background-color: #e2e8f0;
+        --card-background: #f1f5f9;
+        --text-color: #334155;
+        --text-muted: #64748b;
+        --border-color: #cbd5e1;
+        --card-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+        --card-hover-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+        --sidebar-width: 280px;
+        --header-height: 70px;
+      }
 
-      <!-- Crawl Submission Form -->
-      <div class="card mb-4">
-        <div class="card-header">Submit a New Crawl Job</div>
-        <div class="card-body">
-          <form method="POST">
-            <div id="url-fields">
-              <div class="input-group mb-2">
-                <input
-                  name="seed_urls[]"
-                  class="form-control"
-                  placeholder="Seed URL"
-                  required
-                />
+      body {
+        background-color: var(--background-color);
+        color: var(--text-color);
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Header Styles */
+      .main-header {
+        height: var(--header-height);
+        background-color: var(--card-background);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        position: fixed;
+        top: 0;
+        right: 0;
+        left: 0;
+        z-index: 1030;
+        display: flex;
+        align-items: center;
+        padding: 0 1.5rem;
+      }
+
+      .header-brand {
+        font-weight: 700;
+        font-size: 1.5rem;
+        color: var(--primary-color);
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+      }
+
+      .header-brand i {
+        font-size: 1.8rem;
+        margin-right: 0.75rem;
+      }
+
+      .header-search {
+        max-width: 400px;
+        margin-left: 2rem;
+      }
+
+      .header-actions {
+        margin-left: auto;
+      }
+
+      /* Sidebar Styles */
+      .sidebar {
+        width: var(--sidebar-width);
+        background: linear-gradient(
+          180deg,
+          var(--primary-color),
+          var(--secondary-color)
+        );
+        position: fixed;
+        top: var(--header-height);
+        left: 0;
+        bottom: 0;
+        z-index: 1020;
+        box-shadow: 3px 0 10px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        padding-top: 1.5rem;
+        color: white;
+        overflow-y: auto;
+      }
+
+      .sidebar-collapsed {
+        width: 70px;
+      }
+
+      .sidebar-nav {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      .sidebar-nav-item {
+        margin-bottom: 0.5rem;
+      }
+
+      .sidebar-link {
+        display: flex;
+        align-items: center;
+        padding: 0.875rem 1.5rem;
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border-left: 4px solid transparent;
+      }
+
+      .sidebar-link:hover {
+        background-color: rgba(255, 255, 255, 0.1);
+        color: var(--text-color);
+      }
+
+      .sidebar-link.active {
+        background-color: rgba(255, 255, 255, 0.15);
+        color: var(--text-color);
+        border-left: 4px solid var(--accent-color);
+        font-weight: 600;
+      }
+
+      .sidebar-link i {
+        font-size: 1.2rem;
+        min-width: 30px;
+        margin-right: 1rem;
+      }
+
+      .sidebar-toggle {
+        position: absolute;
+        bottom: 1rem;
+        right: 1rem;
+        background-color: rgba(255, 255, 255, 0.2);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+
+      .sidebar-toggle:hover {
+        background-color: rgba(255, 255, 255, 0.3);
+      }
+
+      /* Main Content */
+      .main-content {
+        margin-left: var(--sidebar-width);
+        margin-top: var(--header-height);
+        flex: 1;
+        padding: 2rem;
+        transition: all 0.3s ease;
+      }
+
+      .main-content-expanded {
+        margin-left: 70px;
+      }
+
+      .page-title {
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 1.5rem;
+        font-size: 1.8rem;
+        display: flex;
+        align-items: center;
+      }
+
+      .page-title i {
+        margin-right: 0.75rem;
+      }
+
+      .container-fluid {
+        max-width: 1400px;
+        padding: 0;
+      }
+
+      h1.app-title {
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 1.5rem;
+        font-size: 2.5rem;
+        position: relative;
+        display: inline-block;
+      }
+
+      h1.app-title:after {
+        content: "";
+        position: absolute;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(
+          90deg,
+          var(--primary-color),
+          var(--accent-color)
+        );
+        bottom: -8px;
+        left: 0;
+        border-radius: 4px;
+      }
+
+      .nav-tabs {
+        border: none;
+        margin-bottom: 2rem;
+        gap: 0.5rem;
+      }
+
+      .nav-tabs .nav-item {
+        margin-bottom: 0;
+      }
+
+      .nav-tabs .nav-link {
+        color: var(--text-color);
+        font-weight: 500;
+        padding: 0.8rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        background-color: #dae0e7;
+        transition: all 0.3s ease;
+      }
+
+      .nav-tabs .nav-link:hover {
+        background-color: var(--card-background);
+        transform: translateY(-3px);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      }
+
+      .nav-tabs .nav-link.active {
+        color: #fff;
+        background: linear-gradient(
+          135deg,
+          var(--primary-color),
+          var(--secondary-color)
+        );
+        font-weight: 600;
+        box-shadow: 0 4px 15px rgba(67, 97, 238, 0.3);
+      }
+
+      .nav-tabs .nav-link i {
+        margin-right: 8px;
+      }
+
+      .card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: var(--card-shadow);
+        margin-bottom: 25px;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        background-color: var(--card-background);
+        border: 1px solid var(--border-color);
+      }
+
+      .card:hover {
+        box-shadow: var(--card-hover-shadow);
+        transform: translateY(-5px);
+      }
+
+      .card-title {
+        font-weight: 600;
+        color: var(--primary-color);
+        margin-bottom: 1.2rem;
+        font-size: 1.4rem;
+      }
+
+      .card-body {
+        padding: 2rem;
+      }
+
+      .btn {
+        padding: 0.6rem 1.5rem;
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+      }
+
+      .btn-primary {
+        background: linear-gradient(
+          135deg,
+          var(--primary-color),
+          var(--secondary-color)
+        );
+        border: none;
+      }
+
+      .btn-outline-primary {
+        color: var(--primary-color);
+        border-color: var(--primary-color);
+      }
+
+      .btn-outline-primary:hover {
+        background-color: var(--primary-color);
+        color: var(--text-color);
+      }
+
+      .btn-success {
+        background: linear-gradient(135deg, #2ec4b6, #00a896);
+        border: none;
+      }
+
+      .btn-success:hover {
+        box-shadow: 0 5px 15px rgba(46, 196, 182, 0.4);
+        transform: translateY(-2px);
+      }
+
+      .form-control {
+        border-radius: 8px;
+        padding: 0.8rem 1rem;
+        border: 1px solid var(--border-color);
+        background-color: #e9ecef;
+        color: var(--text-color);
+        transition: all 0.3s ease;
+      }
+
+      .form-control:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        background-color: #f1f5f9;
+      }
+
+      label.form-label {
+        font-weight: 500;
+        color: var(--text-color);
+        margin-bottom: 0.5rem;
+      }
+
+      .progress {
+        height: 12px;
+        border-radius: 6px;
+        background-color: #cbd5e1;
+        margin-bottom: 0.5rem;
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        background: linear-gradient(
+          90deg,
+          var(--primary-color),
+          var(--accent-color)
+        );
+        transition: width 0.5s ease;
+      }
+
+      .health-indicator {
+        width: 15px;
+        height: 15px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+      }
+
+      .health-good {
+        background-color: var(--success-color);
+        box-shadow: 0 0 10px rgba(46, 196, 182, 0.5);
+      }
+
+      .health-warning {
+        background-color: var(--warning-color);
+        box-shadow: 0 0 10px rgba(255, 159, 28, 0.5);
+      }
+
+      .health-bad {
+        background-color: var(--danger-color);
+        box-shadow: 0 0 10px rgba(231, 29, 54, 0.5);
+      }
+
+      .pagination-container {
+        margin-top: 20px;
+      }
+
+      .pagination {
+        gap: 5px;
+      }
+
+      .page-link {
+        border-radius: 8px;
+        border: none;
+        color: var(--primary-color);
+        padding: 0.5rem 1rem;
+        font-weight: 500;
+        background-color: var(--card-background);
+      }
+
+      .page-item.active .page-link {
+        background-color: var(--primary-color);
+        color: var(--text-color);
+      }
+
+      .task-card {
+        margin-bottom: 15px;
+        transition: all 0.3s ease;
+        border-left: 5px solid var(--primary-color);
+      }
+
+      .task-card:hover {
+        transform: translateY(-5px);
+        box-shadow: var(--card-hover-shadow);
+      }
+
+      .task-card.completed {
+        border-left-color: var(--success-color);
+      }
+
+      .task-card.failed {
+        border-left-color: var(--danger-color);
+      }
+
+      .status-badge {
+        font-size: 0.8rem;
+        padding: 5px 10px;
+        border-radius: 20px;
+        font-weight: 600;
+      }
+
+      .export-btn {
+        margin-left: 10px;
+      }
+
+      .list-group-item {
+        border-radius: 8px !important;
+        margin-bottom: 8px;
+        border: 1px solid var(--border-color);
+        background-color: var(--card-background);
+        color: var(--text-color);
+        padding: 1rem;
+        transition: all 0.3s ease;
+      }
+
+      .list-group-item:hover {
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+        transform: translateY(-2px);
+      }
+
+      .text-muted {
+        color: var(--text-muted) !important;
+      }
+
+      table {
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        color: var(--text-color);
+      }
+
+      thead {
+        background-color: #dae0e7;
+      }
+
+      th {
+        font-weight: 600;
+        color: var(--text-color);
+        padding: 1rem !important;
+        border-color: var(--border-color) !important;
+      }
+
+      td {
+        padding: 1rem !important;
+        vertical-align: middle;
+        border-color: var(--border-color) !important;
+      }
+
+      .table-striped > tbody > tr:nth-of-type(odd) > * {
+        background-color: #e9ecef;
+      }
+
+      .alert {
+        border-radius: 10px;
+        font-weight: 500;
+        background-color: #e9ecef;
+        border: 1px solid var(--border-color);
+      }
+
+      /* Footer */
+      .main-footer {
+        background-color: var(--card-background);
+        border-top: 1px solid var(--border-color);
+        padding: 1.5rem 0;
+        margin-top: auto;
+        margin-left: var(--sidebar-width);
+        transition: all 0.3s ease;
+      }
+
+      .main-footer-expanded {
+        margin-left: 70px;
+      }
+
+      .card .bg-light {
+        background-color: #dae0e7 !important;
+      }
+
+      .modal-content {
+        background-color: var(--card-background);
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+      }
+
+      .modal-header,
+      .modal-footer {
+        border-color: var(--border-color);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Header -->
+    <header class="main-header">
+      <a href="#" class="header-brand">
+        <i class="fas fa-spider"></i>
+        <span>Web Crawling System</span>
+      </a>
+
+      <div class="header-actions">
+        <button class="btn btn-sm btn-primary">
+          <i class="fas fa-user me-1"></i> Admin
+        </button>
+      </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-item">
+          <a
+            href="#"
+            class="sidebar-link active"
+            id="crawl-link"
+            data-bs-toggle="tab"
+            data-bs-target="#crawl"
+            role="tab"
+            aria-controls="crawl"
+            aria-selected="true"
+          >
+            <i class="fas fa-spider"></i>
+            <span>New Crawl</span>
+          </a>
+        </li>
+        <li class="sidebar-nav-item">
+          <a
+            href="#"
+            class="sidebar-link"
+            id="search-link"
+            data-bs-toggle="tab"
+            data-bs-target="#search"
+            role="tab"
+            aria-controls="search"
+            aria-selected="false"
+          >
+            <i class="fas fa-link"></i>
+            <span>Search URLs</span>
+          </a>
+        </li>
+        <li class="sidebar-nav-item">
+          <a
+            href="#"
+            class="sidebar-link"
+            id="index-link"
+            data-bs-toggle="tab"
+            data-bs-target="#index"
+            role="tab"
+            aria-controls="index"
+            aria-selected="false"
+          >
+            <i class="fas fa-search"></i>
+            <span>Search Index</span>
+          </a>
+        </li>
+        <li class="sidebar-nav-item">
+          <a
+            href="#"
+            class="sidebar-link"
+            id="progress-link"
+            data-bs-toggle="tab"
+            data-bs-target="#progress"
+            role="tab"
+            aria-controls="progress"
+            aria-selected="false"
+          >
+            <i class="fas fa-tasks"></i>
+            <span>Monitor Progress</span>
+          </a>
+        </li>
+        <li class="sidebar-nav-item">
+          <a
+            href="#"
+            class="sidebar-link"
+            id="health-link"
+            data-bs-toggle="tab"
+            data-bs-target="#health"
+            role="tab"
+            aria-controls="health"
+            aria-selected="false"
+          >
+            <i class="fas fa-heartbeat"></i>
+            <span>System Health</span>
+          </a>
+        </li>
+      </ul>
+
+      <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="container-fluid">
+        <!-- Tab Content -->
+        <div class="tab-content" id="myTabContent">
+          <!-- New Crawl Tab -->
+          <div class="tab-pane fade show active" id="crawl" role="tabpanel">
+            <h2 class="page-title"><i class="fas fa-spider"></i> New Crawl</h2>
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">
+                  <i class="fas fa-spider me-2"></i> Start New Crawl
+                </h5>
+                <p class="text-muted mb-4">
+                  Configure and launch a new web crawling job
+                </p>
+
+                <form method="POST" action="/">
+                  <div class="mb-4">
+                    <label for="seed_urls" class="form-label">
+                      <i class="fas fa-link me-2"></i>Seed URLs
+                    </label>
+                    <div class="form-text mb-2">
+                      Enter one URL per line to start crawling from
+                    </div>
+                    <textarea
+                      class="form-control"
+                      id="seed_urls"
+                      name="seed_urls[]"
+                      rows="3"
+                      required
+                      placeholder="https://example.com&#10;https://example.org"
+                    ></textarea>
+                  </div>
+
+                  <div class="row mb-4">
+                    <div class="col-md-6">
+                      <label for="depth_limit" class="form-label">
+                        <i class="fas fa-level-down-alt me-2"></i>Crawl Depth
+                      </label>
+                      <div class="form-text mb-2">
+                        How many levels deep to crawl
+                      </div>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="depth_limit"
+                        name="depth_limit"
+                        value="1"
+                        min="1"
+                        required
+                      />
+                    </div>
+
+                    <div class="col-md-6">
+                      <label for="domain_restriction" class="form-label">
+                        <i class="fas fa-globe me-2"></i>Domain Restriction
+                      </label>
+                      <div class="form-text mb-2">
+                        Limit crawling to specific domain (optional)
+                      </div>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="domain_restriction"
+                        name="domain_restriction"
+                        placeholder="example.com"
+                      />
+                    </div>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-play me-2"></i>Start Crawling
+                  </button>
+                </form>
               </div>
             </div>
-            <button
-              type="button"
-              class="btn btn-secondary mb-3"
-              onclick="addField()"
-            >
-              Add Another URL
-            </button>
-            <div class="mb-2">
-              <input
-                name="depth_limit"
-                type="number"
-                class="form-control"
-                placeholder="Depth Limit (default 1)"
-              />
-            </div>
-            <div class="mb-3">
-              <input
-                name="domain_restriction"
-                type="text"
-                class="form-control"
-                placeholder="Domain Restriction (optional)"
-              />
-            </div>
-            <button type="submit" class="btn btn-primary">Submit Crawl</button>
-          </form>
-        </div>
-      </div>
+          </div>
 
-      <!-- Live Metrics -->
-      <div class="card mb-4">
-        <div class="card-header">Live Metrics</div>
-        <div class="card-body">
-          <div class="row text-center">
-            <div class="col">
-              <h5>URLs Crawled</h5>
-              <p id="urls-crawled" class="fs-4">0</p>
+          <!-- Search URLs Tab -->
+          <div class="tab-pane fade" id="search" role="tabpanel">
+            <h2 class="page-title"><i class="fas fa-link"></i> Search URLs</h2>
+            <div class="card">
+              <div class="card-body">
+                <div class="mb-4">
+                  <div class="input-group">
+                    <span class="input-group-text" id="url-search-addon">
+                      <i class="fas fa-search"></i>
+                    </span>
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="urlSearch"
+                      placeholder="Enter URL to search"
+                      aria-describedby="url-search-addon"
+                    />
+                    <button class="btn btn-primary" onclick="searchUrls()">
+                      Search
+                    </button>
+                  </div>
+                </div>
+
+                <div id="urlResults" class="mt-4">
+                  <!-- Results will be displayed here -->
+                </div>
+              </div>
             </div>
-            <div class="col">
-              <h5>URLs Indexed</h5>
-              <p id="urls-indexed" class="fs-4">0</p>
+          </div>
+
+          <!-- Search Index Tab -->
+          <div class="tab-pane fade" id="index" role="tabpanel">
+            <h2 class="page-title">
+              <i class="fas fa-search"></i> Search Index
+            </h2>
+            <div class="card">
+              <div class="card-body">
+                <div class="mb-4">
+                  <div class="input-group">
+                    <span class="input-group-text" id="keyword-search-addon">
+                      <i class="fas fa-keyboard"></i>
+                    </span>
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="indexSearch"
+                      placeholder="Enter keywords to search"
+                      aria-describedby="keyword-search-addon"
+                    />
+                    <button class="btn btn-primary" onclick="searchIndex()">
+                      <i class="fas fa-search me-2"></i>Search
+                    </button>
+                    <button class="btn btn-success" onclick="exportIndex()">
+                      <i class="fas fa-file-export me-2"></i>Export Data
+                    </button>
+                  </div>
+                </div>
+
+                <div id="indexResults" class="mt-4">
+                  <!-- Results will be displayed here -->
+                </div>
+                <div id="exportResults" class="mt-4">
+                  <!-- Export results will be displayed here -->
+                </div>
+                <div
+                  class="pagination-container d-flex justify-content-center"
+                  id="exportPagination"
+                >
+                  <!-- Pagination controls will appear here -->
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Monitor Progress Tab -->
+          <div class="tab-pane fade" id="progress" role="tabpanel">
+            <h2 class="page-title">
+              <i class="fas fa-tasks"></i> Monitor Progress
+            </h2>
+            <div class="card">
+              <div class="card-body">
+                <div class="row">
+                  <div class="col-md-6 mb-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                      <div class="card-body">
+                        <h6 class="card-subtitle mb-3">
+                          <i class="fas fa-spider me-2"></i> URLs Crawled
+                        </h6>
+                        <div class="progress">
+                          <div
+                            class="progress-bar"
+                            role="progressbar"
+                            style="width: 0%"
+                            data-value="urls_crawled"
+                          ></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                          <small class="text-muted">Total</small>
+                          <small class="text-primary fw-bold"
+                            >{{ app_state.summary.urls_crawled }} URLs</small
+                          >
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6 mb-4">
+                    <div class="card h-100 border-0 shadow-sm">
+                      <div class="card-body">
+                        <h6 class="card-subtitle mb-3">
+                          <i class="fas fa-database me-2"></i> URLs Indexed
+                        </h6>
+                        <div class="progress">
+                          <div
+                            class="progress-bar"
+                            role="progressbar"
+                            style="width: 0%"
+                            data-value="urls_indexed"
+                          ></div>
+                        </div>
+                        <div class="d-flex justify-content-between mt-2">
+                          <small class="text-muted">Total</small>
+                          <small class="text-primary fw-bold"
+                            >{{ app_state.summary.urls_indexed }} URLs</small
+                          >
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <h5 class="card-title mt-2 mb-4">
+                  <i class="fas fa-project-diagram me-2"></i> Task Progress
+                </h5>
+                <div class="row mb-4">
+                  <div class="col-md-3">
+                    <div class="card h-100 border-0 shadow-sm">
+                      <div class="card-body text-center">
+                        <h3 class="fw-bold text-primary">
+                          {{ app_state.summary.active_tasks }}
+                        </h3>
+                        <p class="text-muted mb-0">Active Tasks</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="card h-100 border-0 shadow-sm">
+                      <div class="card-body text-center">
+                        <h3 class="fw-bold text-success">
+                          {{ app_state.summary.completed_tasks }}
+                        </h3>
+                        <p class="text-muted mb-0">Completed Tasks</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="card h-100 border-0 shadow-sm">
+                      <div class="card-body text-center">
+                        <h3 class="fw-bold text-danger">
+                          {{ app_state.summary.failed_tasks }}
+                        </h3>
+                        <p class="text-muted mb-0">Failed Tasks</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-3">
+                    <div class="card h-100 border-0 shadow-sm">
+                      <div class="card-body text-center">
+                        <h3 class="fw-bold text-info">
+                          {{ app_state.summary.urls_crawled }}
+                        </h3>
+                        <p class="text-muted mb-0">URLs Processed</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="tasksContainer">
+                  <!-- Tasks will be displayed here -->
+                  <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Loading tasks...</p>
+                  </div>
+                </div>
+
+                <div class="d-flex justify-content-end mt-3">
+                  <button
+                    class="btn btn-outline-primary"
+                    onclick="fetchTasks()"
+                  >
+                    <i class="fas fa-sync-alt me-2"></i>Refresh
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- System Health Tab -->
+          <div class="tab-pane fade" id="health" role="tabpanel">
+            <h2 class="page-title">
+              <i class="fas fa-heartbeat"></i> System Health
+            </h2>
+            <div class="card">
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table class="table table-hover">
+                    <thead>
+                      <tr>
+                        <th scope="col">Component</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Last Check</th>
+                        <th scope="col">Hostname</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><i class="fas fa-spider me-2"></i>Crawler</td>
+                        <td>
+                          <span class="health-indicator health-good"></span>
+                          <span class="badge bg-success">Running</span>
+                        </td>
+                        <td>Just now</td>
+                        <td>
+                          <button class="btn btn-sm btn-outline-primary">
+                            Details
+                          </button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td><i class="fas fa-database me-2"></i>Indexer</td>
+                        <td>
+                          <span class="health-indicator health-good"></span>
+                          <span class="badge bg-success">Running</span>
+                        </td>
+                        <td>Just now</td>
+                        <td>
+                          <button class="btn btn-sm btn-outline-primary">
+                            Details
+                          </button>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td><i class="fas fa-hdd me-2"></i>Storage</td>
+                        <td>
+                          <span class="health-indicator health-good"></span>
+                          <span class="badge bg-success">Connected</span>
+                        </td>
+                        <td>Just now</td>
+                        <td>
+                          <button class="btn btn-sm btn-outline-primary">
+                            Details
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div class="d-flex justify-content-end mt-3">
+                  <button class="btn btn-outline-primary">
+                    <i class="fas fa-sync-alt me-2"></i>Refresh
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
+    </main>
 
-      <!-- Active Tasks -->
-      <div class="card">
-        <div class="card-header">Active Crawl Tasks</div>
-        <div class="card-body">
-          <table class="table table-striped">
-            <thead>
-              <tr>
-                <th>Task ID</th>
-                <th>Depth</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody id="tasks-table-body">
-              <!-- Dynamic content -->
-            </tbody>
-          </table>
+    <!-- Footer -->
+    <footer class="main-footer">
+      <div class="container-fluid">
+        <div class="row">
+          <div class="col-md-6">
+            <h5><i class="fas fa-spider me-2"></i>Web Crawling System</h5>
+            <p class="text-muted">
+              A distributed system for crawling and indexing web content
+            </p>
+          </div>
+          <div class="col-md-3"></div>
+          <div class="col-md-3">
+            <h6>System Status</h6>
+            <div class="d-flex align-items-center mb-2">
+              <span class="health-indicator health-good me-2"></span>
+              <span>All Systems Operational</span>
+            </div>
+            <button class="btn btn-sm btn-outline-primary">
+              <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+            </button>
+          </div>
         </div>
+        <hr />
+        <div class="text-center text-muted"></div>
       </div>
+    </footer>
 
-      <!-- Download Index -->
-      <div class="text-center mt-4">
-        <a href="/download_index" class="btn btn-success"
-          >Download Final Indexed Data</a
-        >
-      </div>
-    </div>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-      function addField() {
-        const field = document.createElement("div");
-        field.className = "input-group mb-2";
-        field.innerHTML =
-          '<input name="seed_urls[]" class="form-control" placeholder="Seed URL" required>';
-        document.getElementById("url-fields").appendChild(field);
-      }
+      // Add sidebar toggle functionality
+      document.addEventListener("DOMContentLoaded", function () {
+        const sidebar = document.getElementById("sidebar");
+        const sidebarToggle = document.getElementById("sidebarToggle");
+        const mainContent = document.querySelector(".main-content");
+        const mainFooter = document.querySelector(".main-footer");
+        const toggleIcon = sidebarToggle.querySelector("i");
 
-      function refreshMetrics() {
-        fetch("/metrics")
+        // Fix tab switching
+        const tabLinks = document.querySelectorAll(".sidebar-link");
+        const tabPanes = document.querySelectorAll(".tab-pane");
+
+        // Update progress bars (fix for linter errors)
+        const progressBars = document.querySelectorAll(
+          ".progress-bar[data-value]"
+        );
+        progressBars.forEach((bar) => {
+          const value = bar.getAttribute("data-value");
+          bar.style.width = value + "%";
+        });
+
+        tabLinks.forEach((link) => {
+          link.addEventListener("click", function (e) {
+            e.preventDefault();
+
+            // Remove active class from all links and add to clicked link
+            tabLinks.forEach((l) => l.classList.remove("active"));
+            this.classList.add("active");
+
+            // Hide all tab panes
+            tabPanes.forEach((pane) => {
+              pane.classList.remove("show", "active");
+            });
+
+            // Show the target tab pane
+            const targetId = this.getAttribute("data-bs-target").substring(1);
+            const targetPane = document.getElementById(targetId);
+            targetPane.classList.add("show", "active");
+
+            // Trigger custom event for any tab-specific functionality
+            const event = new CustomEvent("tabActivated", {
+              detail: { tabId: targetId },
+            });
+            document.dispatchEvent(event);
+          });
+        });
+
+        sidebarToggle.addEventListener("click", function () {
+          sidebar.classList.toggle("sidebar-collapsed");
+          mainContent.classList.toggle("main-content-expanded");
+          mainFooter.classList.toggle("main-footer-expanded");
+
+          // Change the toggle icon direction
+          if (sidebar.classList.contains("sidebar-collapsed")) {
+            toggleIcon.classList.remove("fa-chevron-left");
+            toggleIcon.classList.add("fa-chevron-right");
+          } else {
+            toggleIcon.classList.remove("fa-chevron-right");
+            toggleIcon.classList.add("fa-chevron-left");
+          }
+        });
+
+        // Listen for custom tab activation event
+        document.addEventListener("tabActivated", function (e) {
+          const tabId = e.detail.tabId;
+
+          if (tabId === "progress") {
+            fetchTasks();
+          }
+
+          if (tabId === "health") {
+            updateHealthStatus();
+          }
+        });
+
+        // Initial load
+        updateHealthStatus();
+      });
+
+      // Your existing JavaScript functions
+      function searchUrls() {
+        const searchTerm = document.getElementById("urlSearch").value;
+        const resultsDiv = document.getElementById("urlResults");
+
+        if (!searchTerm.trim()) {
+          resultsDiv.innerHTML = `
+            <div class="alert alert-warning">
+              <i class="fas fa-exclamation-triangle me-2"></i> Please enter a URL to search
+            </div>`;
+          return;
+        }
+
+        resultsDiv.innerHTML = `
+          <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Searching for URLs containing "${searchTerm}"...</p>
+          </div>
+        `;
+
+        fetch(`/search/urls?q=${encodeURIComponent(searchTerm)}`)
           .then((response) => response.json())
           .then((data) => {
-            document.getElementById("urls-crawled").textContent =
-              data.metrics.urls_crawled;
-            document.getElementById("urls-indexed").textContent =
-              data.metrics.urls_indexed;
-
-            const tableBody = document.getElementById("tasks-table-body");
-            tableBody.innerHTML = "";
-            for (const [task_id, info] of Object.entries(data.tasks)) {
-              const row = document.createElement("tr");
-              row.innerHTML = `
-                    <td>${task_id}</td>
-                    <td>${info.depth}</td>
-                    <td><span class="badge bg-primary">${info.status}</span></td>
-                `;
-              tableBody.appendChild(row);
+            if (data.error) {
+              resultsDiv.innerHTML = `
+                <div class="alert alert-danger">
+                  <i class="fas fa-exclamation-circle me-2"></i> ${data.error}
+                </div>`;
+              return;
             }
+
+            if (data.results.length === 0) {
+              resultsDiv.innerHTML = `
+                <div class="alert alert-info">
+                  <i class="fas fa-info-circle me-2"></i> No URLs found matching "${searchTerm}"
+                </div>`;
+              return;
+            }
+
+            let html = `
+              <h6 class="mb-3">
+                <i class="fas fa-link me-2"></i> URL Search Results
+                <span class="badge bg-primary ms-2">${data.results.length} results</span>
+              </h6>
+              <div class="list-group">
+            `;
+
+            data.results.forEach((result) => {
+              html += `
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                      <a href="${
+                        result.url
+                      }" target="_blank" class="text-decoration-none">
+                        <i class="fas fa-external-link-alt me-2"></i>${
+                          result.url
+                        }
+                      </a>
+                      ${
+                        result.title
+                          ? `<div class="text-muted small mt-1">${result.title}</div>`
+                          : ""
+                      }
+                    </div>
+                    <div class="text-end">
+                      <small class="text-muted d-block">Last crawled: ${
+                        result.last_crawled
+                      }</small>
+                      <div class="mt-2">
+                        <button class="btn btn-sm btn-outline-primary me-1">
+                          <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-success">
+                          <i class="fas fa-redo"></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            });
+            html += "</div>";
+            resultsDiv.innerHTML = html;
           })
-          .catch((error) => console.error("Error fetching metrics:", error));
+          .catch((error) => {
+            resultsDiv.innerHTML = `
+              <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i> Error searching URLs: ${error}
+              </div>`;
+          });
       }
 
-      setInterval(refreshMetrics, 5000);
-      refreshMetrics(); // initial load
+      function searchIndex() {
+        const searchTerm = document.getElementById("indexSearch").value;
+        const resultsDiv = document.getElementById("indexResults");
+
+        // Hide export results when searching
+        document.getElementById("exportResults").innerHTML = "";
+        document.getElementById("exportPagination").innerHTML = "";
+
+        if (!searchTerm.trim()) {
+          resultsDiv.innerHTML = `
+            <div class="alert alert-warning">
+              <i class="fas fa-exclamation-triangle me-2"></i> Please enter a search term
+            </div>`;
+          return;
+        }
+
+        resultsDiv.innerHTML = `
+          <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Searching for "${searchTerm}"...</p>
+          </div>
+        `;
+
+        fetch(`/search/index?q=${encodeURIComponent(searchTerm)}`)
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.error) {
+              resultsDiv.innerHTML = `
+                <div class="alert alert-danger">
+                  <i class="fas fa-exclamation-circle me-2"></i> ${data.error}
+                </div>`;
+              return;
+            }
+
+            if (data.results.length === 0) {
+              resultsDiv.innerHTML = `
+                <div class="alert alert-info">
+                  <i class="fas fa-info-circle me-2"></i> No results found for "${searchTerm}"
+                </div>`;
+              return;
+            }
+
+            let html = `
+              <h6 class="mb-3">
+                <i class="fas fa-search me-2"></i> Search Results for "${searchTerm}"
+                <span class="badge bg-primary ms-2">${data.results.length} results</span>
+              </h6>
+              <div class="list-group">
+            `;
+
+            data.results.forEach((result) => {
+              html += `
+                <div class="list-group-item">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="mb-0">
+                      <a href="${
+                        result.url
+                      }" target="_blank" class="text-decoration-none">
+                        <i class="fas fa-external-link-alt me-2"></i>${
+                          result.title
+                        }
+                      </a>
+                    </h6>
+                    <span class="badge bg-light text-dark">Score: ${
+                      result.score || "N/A"
+                    }</span>
+                  </div>
+                  <p class="mb-1 text-muted">${result.snippet}</p>
+                  <small class="text-primary">${result.url}</small>
+                </div>
+              `;
+            });
+            html += "</div>";
+            resultsDiv.innerHTML = html;
+          })
+          .catch((error) => {
+            resultsDiv.innerHTML = `
+              <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i> Error searching index: ${error}
+              </div>`;
+          });
+      }
+
+      function exportIndex(page = 1) {
+        const resultsDiv = document.getElementById("exportResults");
+        const paginationDiv = document.getElementById("exportPagination");
+
+        // Hide search results when exporting
+        document.getElementById("indexResults").innerHTML = "";
+
+        resultsDiv.innerHTML = `
+          <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3">Loading indexed data...</p>
+          </div>
+        `;
+
+        fetch(`/export?page=${page}`)
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.error) {
+              resultsDiv.innerHTML = `
+                <div class="alert alert-danger">
+                  <i class="fas fa-exclamation-circle me-2"></i> ${data.error}
+                </div>`;
+              return;
+            }
+
+            if (data.results.length === 0) {
+              resultsDiv.innerHTML = `
+                <div class="alert alert-info">
+                  <i class="fas fa-info-circle me-2"></i> No indexed data found
+                </div>`;
+              return;
+            }
+
+            let html = `
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                  <i class="fas fa-database me-2"></i> Indexed Data
+                  <span class="badge bg-primary ms-2">${data.total} documents</span>
+                </h5>
+                <div>
+                  <button class="btn btn-sm btn-outline-success">
+                    <i class="fas fa-file-excel me-1"></i> Export to CSV
+                  </button>
+                </div>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">URL</th>
+                      <th scope="col">Content Preview</th>
+                      <th scope="col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+            `;
+
+            data.results.forEach((result, index) => {
+              const itemNumber = (data.page - 1) * data.size + index + 1;
+              html += `
+                <tr>
+                  <td class="text-muted">${itemNumber}</td>
+                  <td><a href="${result.url}" target="_blank" class="text-decoration-none">${result.url}</a></td>
+                  <td>${result.content_preview}</td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                  </td>
+                </tr>
+              `;
+            });
+
+            html += `
+                  </tbody>
+                </table>
+              </div>
+            `;
+
+            resultsDiv.innerHTML = html;
+
+            // Create pagination controls
+            let paginationHtml = `<nav aria-label="Page navigation"><ul class="pagination">`;
+
+            // Previous button
+            paginationHtml += `
+              <li class="page-item ${data.page === 1 ? "disabled" : ""}">
+                <a class="page-link" href="#" onclick="exportIndex(${
+                  data.page - 1
+                }); return false;">
+                  <i class="fas fa-chevron-left"></i> Previous
+                </a>
+              </li>
+            `;
+
+            // Page numbers
+            const totalPages = data.pages;
+            const currentPage = data.page;
+            const showPages = 5; // Number of page links to show
+
+            let startPage = Math.max(
+              1,
+              currentPage - Math.floor(showPages / 2)
+            );
+            let endPage = Math.min(totalPages, startPage + showPages - 1);
+
+            if (endPage - startPage + 1 < showPages) {
+              startPage = Math.max(1, endPage - showPages + 1);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+              paginationHtml += `
+                <li class="page-item ${i === currentPage ? "active" : ""}">
+                  <a class="page-link" href="#" onclick="exportIndex(${i}); return false;">${i}</a>
+                </li>
+              `;
+            }
+
+            // Next button
+            paginationHtml += `
+              <li class="page-item ${
+                data.page === data.pages ? "disabled" : ""
+              }">
+                <a class="page-link" href="#" onclick="exportIndex(${
+                  data.page + 1
+                }); return false;">
+                  Next <i class="fas fa-chevron-right"></i>
+                </a>
+              </li>
+            `;
+
+            paginationHtml += `</ul></nav>`;
+            paginationDiv.innerHTML = paginationHtml;
+          })
+          .catch((error) => {
+            resultsDiv.innerHTML = `
+              <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i> Error exporting index: ${error}
+              </div>`;
+          });
+      }
+
+      function fetchTasks() {
+        fetch("/tasks")
+          .then((response) => response.json())
+          .then((data) => {
+            const tasksContainer = document.getElementById("tasksContainer");
+            const tasks = data.tasks;
+
+            // Update summary stats in the UI
+            if (data.summary) {
+              // Update the URLs crawled and indexed counts
+              document
+                .querySelectorAll(".progress-bar[data-value]")
+                .forEach((progressBar) => {
+                  const dataValue = progressBar.getAttribute("data-value");
+                  const value = data.summary[dataValue];
+
+                  if (value !== undefined) {
+                    // Update progress bar - show actual percentage based on value
+                    // A simple scaling to make the progress bar visible even for low values
+                    const percentage =
+                      value > 0 ? Math.min(100, Math.max(10, value)) : 0;
+                    progressBar.style.width = percentage + "%";
+
+                    // Update the corresponding text display
+                    const parentDiv = progressBar.closest(".card-body");
+                    if (parentDiv) {
+                      const countDisplay = parentDiv.querySelector(
+                        ".text-primary.fw-bold"
+                      );
+                      if (countDisplay) {
+                        countDisplay.textContent = value + " URLs";
+                      }
+                    }
+                  }
+                });
+
+              // Update task count summary cards
+              const counters = {
+                active_tasks: "h3.fw-bold.text-primary",
+                completed_tasks: "h3.fw-bold.text-success",
+                failed_tasks: "h3.fw-bold.text-danger",
+                urls_crawled: "h3.fw-bold.text-info",
+              };
+
+              // Update each counter
+              for (const [key, selector] of Object.entries(counters)) {
+                const element = document.querySelector(selector);
+                if (element && data.summary[key] !== undefined) {
+                  element.textContent = data.summary[key];
+                }
+              }
+            }
+
+            if (!tasks || tasks.length === 0) {
+              tasksContainer.innerHTML = `
+                <div class="alert alert-info">
+                  <i class="fas fa-info-circle me-2"></i> No tasks found.
+                </div>`;
+              return;
+            }
+
+            let html = "";
+
+            tasks.forEach((task) => {
+              const statusClass =
+                task.status === "completed"
+                  ? "success"
+                  : task.status === "failed"
+                  ? "danger"
+                  : task.status === "submitted"
+                  ? "warning"
+                  : "primary";
+
+              const statusIcon =
+                task.status === "completed"
+                  ? "check-circle"
+                  : task.status === "failed"
+                  ? "times-circle"
+                  : task.status === "submitted"
+                  ? "hourglass"
+                  : "spinner fa-spin";
+
+              const progressPercentage =
+                task.crawled_urls > 0 && task.total_depth > 0
+                  ? Math.min(
+                      100,
+                      (task.current_depth / task.total_depth) * 50 +
+                        (task.indexed_urls / task.crawled_urls) * 50
+                    )
+                  : 0;
+
+              const elapsedTime = task.end_time
+                ? new Date(task.end_time) - new Date(task.start_time)
+                : new Date() - new Date(task.start_time);
+
+              const elapsedSeconds = Math.floor(elapsedTime / 1000);
+              const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+              const elapsedHours = Math.floor(elapsedMinutes / 60);
+
+              const formattedTime =
+                elapsedHours > 0
+                  ? `${elapsedHours}h ${elapsedMinutes % 60}m`
+                  : elapsedMinutes > 0
+                  ? `${elapsedMinutes}m ${elapsedSeconds % 60}s`
+                  : `${elapsedSeconds}s`;
+
+              html += `
+                <div class="card task-card ${task.status}">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                      <div>
+                        <h6 class="card-title mb-0">
+                          <i class="fas fa-tasks me-2"></i>Task ID
+                        </h6>
+                        <p class="text-muted mb-0 mt-1">${task.task_id}</p>
+                      </div>
+                      <span class="badge bg-${statusClass} status-badge">
+                        <i class="fas fa-${statusIcon} me-1"></i> ${
+                task.status.charAt(0).toUpperCase() + task.status.slice(1)
+              }
+                      </span>
+                    </div>
+                    
+                    <div class="row mb-3">
+                      <div class="col-md-6">
+                        <div class="d-flex align-items-center">
+                          <i class="far fa-calendar-alt text-muted me-2"></i>
+                          <small class="text-muted">Started: ${new Date(
+                            task.start_time
+                          ).toLocaleString()}</small>
+                        </div>
+                      </div>
+                      <div class="col-md-6 text-md-end">
+                        <div class="d-flex align-items-center justify-content-md-end">
+                          <i class="far fa-clock text-muted me-2"></i>
+                          <small class="text-muted">Duration: ${formattedTime}</small>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="card bg-light mb-3 border-0">
+                      <div class="card-body py-3">
+                        <div class="d-flex justify-content-between mb-2">
+                          <span><i class="fas fa-layer-group me-2"></i>Depth Progress:</span>
+                          <span class="fw-bold">${task.current_depth} / ${
+                task.total_depth
+              }</span>
+                        </div>
+                        <div class="progress mb-3" style="height: 8px;">
+                          <div class="progress-bar bg-info" role="progressbar" 
+                               style="width: ${
+                                 task.total_depth > 0
+                                   ? (task.current_depth / task.total_depth) *
+                                     100
+                                   : 0
+                               }%" 
+                               aria-valuenow="${
+                                 task.current_depth
+                               }" aria-valuemin="0" aria-valuemax="${
+                task.total_depth
+              }"></div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mb-2">
+                          <span><i class="fas fa-spider me-2"></i>URLs Crawled:</span>
+                          <span class="fw-bold">${task.crawled_urls}</span>
+                        </div>
+                        <div class="progress mb-3" style="height: 8px;">
+                          <div class="progress-bar bg-primary" role="progressbar" style="width: 100%" 
+                              aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between mb-2">
+                          <span><i class="fas fa-database me-2"></i>URLs Indexed:</span>
+                          <span class="fw-bold">${task.indexed_urls} / ${
+                task.crawled_urls
+              }</span>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                          <div class="progress-bar bg-success" role="progressbar" 
+                               style="width: ${
+                                 task.crawled_urls > 0
+                                   ? (task.indexed_urls / task.crawled_urls) *
+                                     100
+                                   : 0
+                               }%" 
+                               aria-valuenow="${
+                                 task.indexed_urls
+                               }" aria-valuemin="0" aria-valuemax="${
+                task.crawled_urls
+              }"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div class="row">
+                      <div class="col-md-8">
+                        <small class="text-muted d-block mb-1">Seed URLs: ${
+                          task.seed_urls
+                            ? task.seed_urls.slice(0, 2).join(", ") +
+                              (task.seed_urls.length > 2 ? "..." : "")
+                            : "None"
+                        }</small>
+                        ${
+                          task.domain_restriction
+                            ? `<small class="text-muted d-block">Domain: ${task.domain_restriction}</small>`
+                            : ""
+                        }
+                      </div>
+                      <div class="col-md-4 text-end">
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewTaskDetails('${
+                          task.task_id
+                        }')">
+                          <i class="fas fa-info-circle me-1"></i> Details
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            });
+
+            tasksContainer.innerHTML = html;
+          })
+          .catch((error) => {
+            console.error("Error fetching tasks:", error);
+            document.getElementById(
+              "tasksContainer"
+            ).innerHTML = `<div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i> Error loading tasks: ${error}
+              </div>`;
+          });
+      }
+
+      function viewTaskDetails(taskId) {
+        // Fetch and display task details in a modal
+        fetch(`/tasks/${taskId}`)
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.error) {
+              alert("Error fetching task details: " + data.error);
+              return;
+            }
+
+            const task = data.task;
+            let modalHTML = `
+              <div class="modal" id="taskDetailModal" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title">Task Details: ${taskId}</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                      <ul class="nav nav-tabs" id="taskDetailTabs">
+                        <li class="nav-item">
+                          <a class="nav-link active" data-bs-toggle="tab" href="#overview">Overview</a>
+                        </li>
+                        <li class="nav-item">
+                          <a class="nav-link" data-bs-toggle="tab" href="#urls">URLs</a>
+                        </li>
+                        <li class="nav-item">
+                          <a class="nav-link" data-bs-toggle="tab" href="#timeline">Timeline</a>
+                        </li>
+                      </ul>
+                      
+                      <div class="tab-content mt-3">
+                        <div class="tab-pane fade show active" id="overview">
+                          <div class="row">
+                            <div class="col-md-6">
+                              <p><strong>Status:</strong> ${task.status}</p>
+                              <p><strong>Started:</strong> ${new Date(
+                                task.start_time
+                              ).toLocaleString()}</p>
+                              ${
+                                task.end_time
+                                  ? `<p><strong>Ended:</strong> ${new Date(
+                                      task.end_time
+                                    ).toLocaleString()}</p>`
+                                  : ""
+                              }
+                              <p><strong>URLs Crawled:</strong> ${
+                                task.crawled_urls
+                              }</p>
+                              <p><strong>URLs Indexed:</strong> ${
+                                task.indexed_urls
+                              }</p>
+                            </div>
+                            <div class="col-md-6">
+                              <p><strong>Depth:</strong> ${
+                                task.current_depth
+                              } / ${task.total_depth}</p>
+                              <p><strong>Domain Restriction:</strong> ${
+                                task.domain_restriction || "None"
+                              }</p>
+                              ${
+                                task.error
+                                  ? `<div class="alert alert-danger mt-3">${task.error}</div>`
+                                  : ""
+                              }
+                            </div>
+                          </div>
+                          
+                          <h6 class="mt-3">Seed URLs:</h6>
+                          <ul>
+                            ${
+                              task.seed_urls
+                                ? task.seed_urls
+                                    .map(
+                                      (url) =>
+                                        `<li><a href="${url}" target="_blank">${url}</a></li>`
+                                    )
+                                    .join("")
+                                : "<li>None</li>"
+                            }
+                          </ul>
+                        </div>
+                        
+                        <div class="tab-pane fade" id="urls">
+                          <h6>Crawled URLs (${
+                            task.crawled_urls_list
+                              ? task.crawled_urls_list.length
+                              : 0
+                          })</h6>
+                          <div class="url-list" style="max-height: 200px; overflow-y: auto;">
+                            ${
+                              task.crawled_urls_list &&
+                              task.crawled_urls_list.length > 0
+                                ? task.crawled_urls_list
+                                    .map(
+                                      (url) =>
+                                        `<div class="mb-1"><a href="${url}" target="_blank">${url}</a></div>`
+                                    )
+                                    .join("")
+                                : "<p>No URLs crawled yet</p>"
+                            }
+                          </div>
+                          
+                          <h6 class="mt-3">Indexed URLs (${
+                            task.indexed_urls_list
+                              ? task.indexed_urls_list.length
+                              : 0
+                          })</h6>
+                          <div class="url-list" style="max-height: 200px; overflow-y: auto;">
+                            ${
+                              task.indexed_urls_list &&
+                              task.indexed_urls_list.length > 0
+                                ? task.indexed_urls_list
+                                    .map(
+                                      (url) =>
+                                        `<div class="mb-1"><a href="${url}" target="_blank">${url}</a></div>`
+                                    )
+                                    .join("")
+                                : "<p>No URLs indexed yet</p>"
+                            }
+                          </div>
+                        </div>
+                        
+                        <div class="tab-pane fade" id="timeline">
+                          <div class="timeline">
+                            ${
+                              task.progress_events
+                                ? task.progress_events
+                                    .map(
+                                      (event) => `
+                              <div class="timeline-item mb-3">
+                                <div class="d-flex">
+                                  <div class="timeline-marker me-3">
+                                    <i class="fas fa-circle text-${
+                                      event.event.includes("fail")
+                                        ? "danger"
+                                        : event.event.includes("complete")
+                                        ? "success"
+                                        : "primary"
+                                    } small"></i>
+                                  </div>
+                                  <div class="timeline-content">
+                                    <p class="mb-0"><strong>${
+                                      event.event
+                                    }</strong></p>
+                                    <p class="text-muted small mb-0">${new Date(
+                                      event.timestamp
+                                    ).toLocaleString()}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            `
+                                    )
+                                    .join("")
+                                : "<p>No events recorded</p>"
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            `;
+
+            // Add modal to body
+            const modalContainer = document.createElement("div");
+            modalContainer.innerHTML = modalHTML;
+            document.body.appendChild(modalContainer);
+
+            // Show modal
+            const modalElement = document.getElementById("taskDetailModal");
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+
+            // Clean up modal on hide
+            modalElement.addEventListener("hidden.bs.modal", function () {
+              document.body.removeChild(modalContainer);
+            });
+          })
+          .catch((error) => {
+            console.error("Error fetching task details:", error);
+            alert("Error fetching task details: " + error);
+          });
+      }
+
+      function updateHealthStatus() {
+        fetch("/health")
+          .then((response) => response.json())
+          .then((data) => {
+            const healthTable = document.querySelector("#health table tbody");
+            healthTable.innerHTML = "";
+
+            Object.entries(data).forEach(([component, info]) => {
+              let statusClass = "health-bad";
+              let statusText = info.status;
+
+              if (info.status === "running" || info.status === "connected") {
+                statusClass = "health-good";
+              } else if (info.status === "offline") {
+                statusClass = "health-warning";
+                statusText = "Offline (No health check in 2+ minutes)";
+              }
+
+              healthTable.innerHTML += `
+                <tr>
+                  <td>${
+                    component.charAt(0).toUpperCase() + component.slice(1)
+                  }</td>
+                  <td><span class="health-indicator ${statusClass}"></span> ${statusText}</td>
+                  <td>${
+                    info.last_check
+                      ? new Date(info.last_check).toLocaleString()
+                      : "Never"
+                  }</td>
+                  <td>${info.hostname || "Unknown"}</td>
+                </tr>
+              `;
+            });
+          })
+          .catch((error) =>
+            console.error("Error fetching health status:", error)
+          );
+      }
+
+      // Auto-refresh progress and health every 3 seconds
+      setInterval(() => {
+        // Check if any tab is active that needs refresh
+        const progressTabActive =
+          document.getElementById("progress").classList.contains("show") &&
+          document.getElementById("progress").classList.contains("active");
+        const healthTabActive =
+          document.getElementById("health").classList.contains("show") &&
+          document.getElementById("health").classList.contains("active");
+
+        if (progressTabActive) {
+          fetchTasks();
+        }
+
+        if (healthTabActive) {
+          updateHealthStatus();
+        }
+      }, 3000);
     </script>
   </body>
 </html>
