@@ -273,18 +273,6 @@ This system is designed to run on Google Cloud Platform using various managed se
    gcloud run services update web-crawler-crawler --min-instances=2 --max-instances=20
    ```
 
-### Kubernetes Deployment
-
-For more control over your deployment, use Kubernetes:
-
-```bash
-# Apply Kubernetes manifests
-kubectl apply -f kubernetes/
-
-# Check deployment status
-kubectl get pods
-```
-
 ## Customization
 
 ### Elasticsearch Configuration
@@ -334,12 +322,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Acknowledgments
 
 - Google Cloud Platform for providing the infrastructure
 - Elasticsearch for powerful search capabilities
-- All contributors who have helped with the development
