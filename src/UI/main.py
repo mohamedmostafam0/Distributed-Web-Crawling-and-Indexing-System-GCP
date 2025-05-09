@@ -60,8 +60,7 @@ app_state = {
     "health": {    # Component health status
         "master": {"status": "unknown", "last_check": None},
         "crawler": {"status": "unknown", "last_check": None},
-        "indexer": {"status": "unknown", "last_check": None},
-        "storage": {"status": "unknown", "last_check": None}
+        "indexer": {"status": "unknown", "last_check": None}
     }
 }
 

@@ -11,6 +11,8 @@ import threading
 import re
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
+from urllib.robotparser import RobotFileParser
+from urllib.error import URLError
 from datetime import datetime
 from google.cloud import pubsub_v1, storage
 from google.api_core import exceptions
@@ -28,6 +30,7 @@ class CrawlerNode:
         self._init_clients()
 
         self.seen_urls = set()
+        self.robots_cache = {}  # Cache for robots.txt parsers
         self.REQUESTS_TIMEOUT = 10
         self.POLITE_DELAY = 1
         self.USER_AGENT = "MyDistributedCrawler/1.0 (+http://example.com/botinfo)"
@@ -91,10 +94,44 @@ class CrawlerNode:
     
 
     def normalize_url(self, url):
-        """Normalize URLs to avoid recrawling duplicates (e.g., remove fragments, trailing slashes)."""
+        """Normalize URL to avoid crawling duplicates."""
         parsed = urlparse(url)
-        normalized = parsed._replace(fragment="", path=re.sub(r'/$', '', parsed.path)).geturl()
-        return normalized.lower()
+        # Remove fragments, normalize to lowercase
+        normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+        if parsed.query:
+            normalized += f"?{parsed.query}"
+        return normalized.lower().rstrip('/')
+        
+    def can_fetch(self, url):
+        """Check if the crawler is allowed to fetch the URL according to robots.txt rules."""
+        parsed_url = urlparse(url)
+        robots_url = f"{parsed_url.scheme}://{parsed_url.netloc}/robots.txt"
+        
+        # Check if we have a cached parser for this domain
+        if robots_url in self.robots_cache:
+            return self.robots_cache[robots_url].can_fetch(self.USER_AGENT, url)
+        
+        # Create a new parser
+        rp = RobotFileParser()
+        rp.set_url(robots_url)
+        
+        try:
+            logging.info(f"Fetching robots.txt from {robots_url}")
+            rp.read()
+            # Cache the parser
+            self.robots_cache[robots_url] = rp
+            allowed = rp.can_fetch(self.USER_AGENT, url)
+            if not allowed:
+                logging.info(f"Robots.txt disallows crawling: {url}")
+            return allowed
+        except (URLError, Exception) as e:
+            logging.warning(f"Error fetching robots.txt from {robots_url}: {e}")
+            # If we can't fetch robots.txt, we'll assume crawling is allowed
+            # but we'll cache a permissive parser to avoid repeated attempts
+            permissive_parser = RobotFileParser()
+            permissive_parser.parse(['User-agent: *', 'Allow: /'])
+            self.robots_cache[robots_url] = permissive_parser
+            return True
     
     def save_to_gcs(self, bucket_name, blob_path, data, content_type):
         try:
@@ -120,7 +157,7 @@ class CrawlerNode:
             logging.error(f"Failed to publish message to {topic_path}: {e}")
             return False
 
-    def publish_new_urls_to_master(self, new_urls, domain_restriction, source_task_id):
+    def publish_new_urls_to_master(self, new_urls, domain_restriction, source_task_id, depth):
         if not new_urls:
             return
         new_task_id = str(uuid.uuid4())
@@ -129,7 +166,7 @@ class CrawlerNode:
 
         message_data = {
             "seed_urls": new_urls,
-            "depth": 0,
+            "depth": depth,
             "domain_restriction": domain_restriction
         }
 
@@ -171,7 +208,11 @@ class CrawlerNode:
             task_id = task_data.get("task_id", "N/A")
             depth = task_data.get("depth", 0)
             depth = int(depth)  # Ensure integer
+            depth_limit = task_data.get("depth_limit", self.MAX_DEPTH)
             domain_restriction = task_data.get("domain_restriction")
+            source_job_id = task_data.get("source_job_id")
+
+            print(f"🔍 Crawler received: {url} (depth={depth}/{depth_limit})")
 
             if not url or not url.startswith('http'):
                 logging.warning(f"Received invalid task data (missing/invalid URL): {data_str}")
@@ -193,8 +234,14 @@ class CrawlerNode:
                 message.ack() # Acknowledge invalid message so it's not redelivered
                 return
 
+            # --- Check robots.txt before fetching ---
+            if not self.can_fetch(url):
+                logging.info(f"Skipping URL due to robots.txt restrictions: {url}")
+                message.ack()  # Acknowledge the message as we won't process it
+                self.publish_crawler_metrics("url_skipped", task_id=task_id, url=url, extra={"reason": "robots_txt"})
+                return
+            
             # --- Fetch URL ---
-            # TODO: Implement robots.txt check before fetching
             try:
                 headers = {'User-Agent': self.USER_AGENT}
                 response = requests.get(url, timeout=self.REQUESTS_TIMEOUT, headers=headers, allow_redirects=True)
@@ -264,7 +311,7 @@ class CrawlerNode:
 
                 # --- Extract and Publish New URLs (if depth allows) ---
 
-                if depth < self.MAX_DEPTH:
+                if depth < depth_limit:
                     new_urls_found = 0
                     new_urls = []
 
@@ -285,7 +332,9 @@ class CrawlerNode:
                             new_urls_found += 1
 
                     logging.info(f"Found {new_urls_found} new URLs from {final_url}")
-                    self.publish_new_urls_to_master(new_urls, domain_restriction, task_id)
+                    # Pass the incremented depth value for the next level of crawling
+                    next_depth = depth + 1
+                    self.publish_new_urls_to_master(new_urls, domain_restriction, task_id, next_depth)
                     self.publish_crawler_metrics("new_urls_found", task_id=task_id, extra={"task_id": task_id, "count": len(new_urls)})
                     
                 logging.info(f"Successfully processed and queued for indexing: {final_url}")
@@ -311,7 +360,6 @@ class CrawlerNode:
         logging.info(f"Publishing index data to topic: {self.index_topic_path}")
         logging.info(f"Publishing new URLs to topic: {self.new_url_topic_path}")
         logging.info(f"Storing data in GCS Bucket: {self.GCS_BUCKET_NAME}")
-        logging.info(f"Max Crawl Depth: {self.MAX_DEPTH}")
         self.start_health_heartbeat()
 
         # --- Start Subscriber ---

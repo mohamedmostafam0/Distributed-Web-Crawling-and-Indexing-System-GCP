@@ -120,28 +120,15 @@ class MasterNode:
             logging.error(f"Failed to publish message to {topic_path}: {e}")
             return False
 
-    # --- Monitoring Helpers ---
-    # def publish_metric(self, metric_name, value):
-    #     series = monitoring_v3.TimeSeries()
-    #     series.metric.type = f"custom.googleapis.com/{metric_name}"
-    #     series.resource.type = "global"
-    #     point = series.points.add()
-    #     point.value.int64_value = value
-    #     point.interval.end_time.seconds = int(time.time())
-    #     point.interval.end_time.nanos = 0
-
-    #     project_name = f"projects/{self.PROJECT_ID}"
-    #     self.monitoring_client.create_time_series(request={"name": project_name, "time_series": [series]})
-
-
     # Modify publish_crawl_task to accept parameters
-    def publish_crawl_task(self, url, depth=0, domain_restriction=None, source_job_id=None):
+    def publish_crawl_task(self, url, depth=0, domain_restriction=None, source_job_id=None, depth_limit=None):
         """Publishes a single URL crawl task to Pub/Sub."""
         task_id = str(uuid.uuid4())
         message_data = {
             "task_id": task_id,
             "url": url,
             "depth": depth,
+            "depth_limit": depth_limit,
             "domain_restriction": domain_restriction, # Pass along
             "source_job_id": source_job_id # Optional: Link back to UI job
         }
@@ -229,7 +216,8 @@ class MasterNode:
                     url,
                     depth=0,
                     domain_restriction=domain_restriction,
-                    source_job_id=task_id
+                    source_job_id=task_id,
+                    depth_limit=depth_limit
                 )
                 time.sleep(0.05)
             self.publish_progress_metric("url_scheduled", extra={"url": url, "job_id": task_id})
