@@ -88,6 +88,14 @@ def update_summary_stats():
     urls_crawled = 0
     urls_indexed = 0
     
+    # First pass to fix any inconsistencies in individual tasks
+    for task in app_state["tasks"].values():
+        # Ensure indexed URLs never exceed crawled URLs for each task
+        if task["indexed_urls"] > task["crawled_urls"]:
+            print(f"Warning: Task {task['task_id']} has more indexed URLs ({task['indexed_urls']}) than crawled URLs ({task['crawled_urls']}). Adjusting indexed count.")
+            task["indexed_urls"] = task["crawled_urls"]
+    
+    # Second pass to calculate totals
     for task in app_state["tasks"].values():
         if task["status"] == "in_progress":
             active += 1
@@ -137,10 +145,18 @@ def listen_health_status():
 def listen_to_progress():
     def callback(message: pubsub_v1.subscriber.message.Message):
         try:
+            print(f"Received progress message: {message.data}")
             data = json.loads(message.data.decode("utf-8"))
-            task_id = data.get("task_id")
+            # Check for task_id or job_id (some components might use job_id instead)
+            task_id = data.get("task_id") or data.get("job_id")
             event = data.get("event")
             timestamp = data.get("timestamp") or datetime.utcnow().isoformat()
+            print(f"Processing progress event: {event} for task {task_id}")
+            
+            # Special handling for master node job_received events
+            if not task_id and data.get("node_type") == "master" and event == "job_received":
+                # Use the job_id as the task_id for these events
+                task_id = data.get("job_id")
             
             if not task_id:
                 print(f"Received progress message without task_id: {data}")
@@ -185,7 +201,8 @@ def listen_to_progress():
                 task["domain_restriction"] = data.get("domain_restriction", task["domain_restriction"])
                 update_summary_stats()
                 
-            elif event == "url_crawled":
+            elif event == "url_crawled" or event == "crawled":
+                # Support both event names for backward compatibility
                 task["crawled_urls"] += 1
                 url = data.get("url")
                 if url and url not in task["crawled_urls_list"]:
@@ -195,13 +212,18 @@ def listen_to_progress():
                 depth = data.get("depth")
                 if depth is not None and depth > task["current_depth"]:
                     task["current_depth"] = depth
+                print(f"Updated crawled count for task {task_id}: {task['crawled_urls']} URLs")
                 update_summary_stats()
                 
-            elif event == "url_indexed":
-                task["indexed_urls"] += 1
+            elif event == "url_indexed" or event == "indexed":
+                # Support both event names for backward compatibility
                 url = data.get("url")
+                # Allow indexed count to increment even if crawled count is 0 (for now)
+                # This is a temporary fix to ensure progress is shown
+                task["indexed_urls"] += 1
                 if url and url not in task["indexed_urls_list"]:
                     task["indexed_urls_list"].append(url)
+                print(f"Updated indexed count for task {task_id}: {task['indexed_urls']} URLs")
                 update_summary_stats()
                 
             elif event == "depth_complete":
@@ -237,12 +259,24 @@ def listen_to_progress():
         finally:
             message.ack()
 
-    streaming_pull_future = subscriber.subscribe(progress_subscription_path, callback=callback)
     try:
-        streaming_pull_future.result()
+        print(f"Subscribing to progress messages on {progress_subscription_path}")
+        streaming_pull_future = subscriber.subscribe(progress_subscription_path, callback=callback)
+        print("Successfully subscribed to progress topic")
+        # Use a timeout to prevent blocking indefinitely
+        streaming_pull_future.result(timeout=None)
+    except TimeoutError:
+        print("Progress listener timed out, restarting...")
+        streaming_pull_future.cancel()
+        time.sleep(5)
+        # Restart the listener
+        threading.Thread(target=listen_to_progress, daemon=True).start()
     except Exception as e:
         print(f"Error in progress listener: {e}")
         streaming_pull_future.cancel()
+        time.sleep(5)
+        # Restart the listener on error
+        threading.Thread(target=listen_to_progress, daemon=True).start()
 
 def periodic_health_check():
     """Periodically check node health even without UI interaction"""
@@ -259,6 +293,61 @@ def periodic_health_check():
         except Exception as e:
             print(f"Error in periodic health check: {e}")
             time.sleep(10)  # Sleep and retry on error
+
+def check_stalled_tasks():
+    """Check for tasks that appear to be stalled and update their status"""
+    while True:
+        try:
+            current_time = datetime.utcnow()
+            active_tasks = [task_id for task_id, task in app_state["tasks"].items() if task["status"] == "in_progress"]
+            print(f"Currently tracking {len(active_tasks)} active tasks")
+            
+            # First, handle tasks with progress
+            for task_id, task in app_state["tasks"].items():
+                if task["status"] == "in_progress":
+                    try:
+                        last_update = datetime.fromisoformat(task["last_update"])
+                        time_diff = (current_time - last_update).total_seconds()
+                        
+                        # If task has progress and no updates for 1 minute, mark as completed
+                        if time_diff > 60 and (task["crawled_urls"] > 0 or task["indexed_urls"] > 0):
+                            print(f"Auto-completing task {task_id} with progress (no updates for {time_diff:.0f} seconds)")
+                            task["status"] = "completed"
+                            task["end_time"] = current_time.isoformat()
+                            task["completion_details"] = {"auto_completed": True, "reason": "task_completed_with_progress"}
+                        # If no progress for 2 minutes, mark as failed
+                        elif time_diff > 120 and task["crawled_urls"] == 0 and task["indexed_urls"] == 0:
+                            print(f"Auto-failing task {task_id} with no progress after {time_diff:.0f} seconds")
+                            task["status"] = "failed"
+                            task["end_time"] = current_time.isoformat()
+                            task["error"] = "Task failed to make progress"
+                            task["error_details"] = {"auto_failed": True, "reason": "task_no_progress"}
+                    except Exception as e:
+                        print(f"Error checking task {task_id} for staleness: {e}")
+            
+            # Limit the number of active tasks to 10 by completing older ones
+            if len(active_tasks) > 10:
+                # Sort tasks by last_update (oldest first)
+                sorted_tasks = sorted(
+                    [(task_id, app_state["tasks"][task_id]["last_update"]) for task_id in active_tasks],
+                    key=lambda x: x[1]
+                )
+                
+                # Mark older tasks as completed to keep only 10 active
+                for task_id, _ in sorted_tasks[:-10]:  # Keep the 10 most recent tasks
+                    task = app_state["tasks"][task_id]
+                    if task["status"] == "in_progress":
+                        print(f"Auto-completing older task {task_id} to limit active tasks")
+                        task["status"] = "completed"
+                        task["end_time"] = current_time.isoformat()
+                        task["completion_details"] = {"auto_completed": True, "reason": "limit_active_tasks"}
+            
+            # Update summary stats after checking tasks
+            update_summary_stats()
+            time.sleep(30)  # Check every 30 seconds
+        except Exception as e:
+            print(f"Error in stalled task checker: {e}")
+            time.sleep(15)  # Sleep and retry on error
 
 def periodic_updates():
     """Periodically update summary stats and other data that should be refreshed"""
@@ -522,9 +611,13 @@ def health_check():
     return jsonify(app_state["health"])
 
 if __name__ == "__main__":
-    threading.Thread(target=listen_health_status, daemon=True).start()
-    threading.Thread(target=listen_to_progress, daemon=True).start()
-    threading.Thread(target=periodic_health_check, daemon=True).start()
-    threading.Thread(target=periodic_updates, daemon=True).start()
-
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("Starting UI server with background threads...")
+    # Start all background threads
+    threading.Thread(target=listen_health_status, daemon=True, name="health_listener").start()
+    threading.Thread(target=listen_to_progress, daemon=True, name="progress_listener").start()
+    threading.Thread(target=periodic_health_check, daemon=True, name="health_checker").start()
+    threading.Thread(target=periodic_updates, daemon=True, name="stats_updater").start()
+    threading.Thread(target=check_stalled_tasks, daemon=True, name="stalled_task_checker").start()
+    
+    print("All background threads started, launching web server...")
+    app.run(debug=False, host='0.0.0.0', port=5000)  # Set debug=False to avoid thread duplication

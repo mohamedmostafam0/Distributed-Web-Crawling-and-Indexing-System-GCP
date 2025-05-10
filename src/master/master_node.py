@@ -68,7 +68,6 @@ class MasterNode:
             self.publisher = pubsub_v1.PublisherClient()
             self.subscriber = pubsub_v1.SubscriberClient()
             self.storage_client = storage.Client()
-            self.monitoring_client = monitoring_v3.MetricServiceClient()
             self.crawl_topic_path = self.publisher.topic_path(self.PROJECT_ID, self.CRAWL_TASKS_TOPIC_ID)
             self.subscription_path = self.subscriber.subscription_path(self.PROJECT_ID, self.NEW_MASTER_JOB_SUBSCRIPTION_ID)
             self.metrics_topic_path = self.publisher.topic_path(self.PROJECT_ID, self.METRICS_TOPIC_ID)

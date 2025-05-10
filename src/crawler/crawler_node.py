@@ -95,6 +95,8 @@ class CrawlerNode:
 
     def normalize_url(self, url):
         """Normalize URL to avoid crawling duplicates."""
+        # Clean the URL first to ensure it doesn't contain newlines or carriage returns
+        url = url.strip().replace('\r', '').replace('\n', '')
         parsed = urlparse(url)
         # Remove fragments, normalize to lowercase
         normalized = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
@@ -104,6 +106,8 @@ class CrawlerNode:
         
     def can_fetch(self, url):
         """Check if the crawler is allowed to fetch the URL according to robots.txt rules."""
+        # Clean the URL first to ensure it doesn't contain newlines or carriage returns
+        url = url.strip().replace('\r', '').replace('\n', '')
         parsed_url = urlparse(url)
         robots_url = f"{parsed_url.scheme}://{parsed_url.netloc}/robots.txt"
         
@@ -160,28 +164,33 @@ class CrawlerNode:
     def publish_new_urls_to_master(self, new_urls, domain_restriction, source_task_id, depth):
         if not new_urls:
             return
-        new_task_id = str(uuid.uuid4())
-        timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%S')
-        gcs_blob_path = f"new_tasks/{new_task_id}_{timestamp}.json"
 
-        message_data = {
-            "seed_urls": new_urls,
-            "depth": depth,
-            "domain_restriction": domain_restriction
-        }
+        for url in new_urls:
+            # Clean the URL first to ensure it doesn't contain newlines or carriage returns
+            clean_url = url.strip().replace('\r', '').replace('\n', '')
+            
+            # Create a message for each URL
+            message_data = {
+                "task_id": str(uuid.uuid4()),
+                "url": clean_url,
+                "depth": depth,
+                "domain_restriction": domain_restriction,
+                "source_task_id": source_task_id,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            gcs_blob_path = f"new_tasks/{message_data['task_id']}_{datetime.utcnow().strftime('%Y%m%dT%H%M%S')}.json"
+            bucket = self.storage_client.bucket(self.GCS_BUCKET_NAME)
+            blob = bucket.blob(gcs_blob_path)
+            blob.upload_from_string(json.dumps(message_data), content_type="application/json")
+            logging.info(f"Saved new URL batch to gs://{self.GCS_BUCKET_NAME}/{gcs_blob_path}")
 
-        bucket = self.storage_client.bucket(self.GCS_BUCKET_NAME)
-        blob = bucket.blob(gcs_blob_path)
-        blob.upload_from_string(json.dumps(message_data), content_type="application/json")
-        logging.info(f"Saved new URL batch to gs://{self.GCS_BUCKET_NAME}/{gcs_blob_path}")
+            pubsub_msg = {
+                "task_id": message_data["task_id"],
+                "gcs_path": f"gs://{self.GCS_BUCKET_NAME}/{gcs_blob_path}"
+            }
 
-        pubsub_msg = {
-            "task_id": new_task_id,
-            "gcs_path": f"gs://{self.GCS_BUCKET_NAME}/{gcs_blob_path}"
-        }
-
-        self.publish_message(self.new_url_topic_path, pubsub_msg)
-        logging.info(f"Published new crawl job task_id={new_task_id} to master")
+            self.publish_message(self.new_url_topic_path, pubsub_msg)
+            logging.info(f"Published new crawl job task_id={message_data['task_id']} to master")
 
 
     def publish_crawler_metrics(self, event_type, task_id, url=None, extra=None):
@@ -212,6 +221,10 @@ class CrawlerNode:
             domain_restriction = task_data.get("domain_restriction")
             source_job_id = task_data.get("source_job_id")
 
+            # Clean the URL - remove any newlines or carriage returns that might have been added
+            if url:
+                url = url.strip().replace('\r', '').replace('\n', '')
+
             print(f"🔍 Crawler received: {url} (depth={depth}/{depth_limit})")
 
             if not url or not url.startswith('http'):
@@ -228,11 +241,6 @@ class CrawlerNode:
 
             logging.info(f"Received task {task_id}: Crawl URL: {url} at depth {depth}")
             time.sleep(self.POLITE_DELAY)
-
-            if not url or not url.startswith('http'):
-                logging.warning(f"Received invalid task data (missing/invalid URL): {data_str}")
-                message.ack() # Acknowledge invalid message so it's not redelivered
-                return
 
             # --- Check robots.txt before fetching ---
             if not self.can_fetch(url):
@@ -318,11 +326,15 @@ class CrawlerNode:
                     links = soup.find_all('a', href=True)
                     for link in links:
                         href = link['href']
+                        # Clean the href first to ensure it doesn't contain newlines or carriage returns
+                        href = href.strip().replace('\r', '').replace('\n', '')
                         new_url = urljoin(final_url, href)
                         parsed_new_url = urlparse(new_url)
 
                         if parsed_new_url.scheme in ['http', 'https'] and parsed_new_url.netloc:
-                            normalized_new_url = self.normalize_url(new_url)
+                            # Clean the URL first to ensure it doesn't contain newlines or carriage returns
+                            clean_new_url = new_url.strip().replace('\r', '').replace('\n', '')
+                            normalized_new_url = self.normalize_url(clean_new_url)
                             if normalized_new_url in self.seen_urls:
                                 continue
                             if domain_restriction and domain_restriction not in parsed_new_url.netloc:
