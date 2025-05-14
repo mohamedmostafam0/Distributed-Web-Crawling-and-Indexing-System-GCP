@@ -1,9 +1,12 @@
 \documentclass[12pt,a4paper]{report}
-
+    
 % Packages
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \usepackage{hyperref}
+\hypersetup{
+pdfborder={0 0 0}
+}
 \usepackage{booktabs}
 \usepackage{tabularx}
 \usepackage{xcolor}
@@ -13,6 +16,23 @@
 \usepackage{fancyhdr}
 \usepackage{geometry}
 \usepackage{titlesec}
+\usepackage{verbatim}
+\usepackage[normalem]{ulem} % Allows underlining without affecting emphasis formatting
+\hypersetup{
+colorlinks=true, % Enables colored links
+linkcolor=black, % Keeps internal links like TOC black
+urlcolor=blue % Changes only URLs to blue
+}
+\definecolor{codebackground}{rgb}{0.95, 0.95, 0.95}
+\lstset{
+backgroundcolor=\color{codebackground},
+basicstyle=\ttfamily\small,
+frame=single,
+breaklines=true,
+keywordstyle=\color{blue},
+commentstyle=\color{green},
+stringstyle=\color{red}
+}
 
 % Page geometry
 \geometry{margin=1in}
@@ -26,8 +46,8 @@
 
 % Title formatting
 \titleformat{\chapter}[display]
-{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
-\titlespacing*{\chapter}{0pt}{0pt}{40pt}
+{\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{15pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{0pt}{30pt}
 
 % Code listing style
 \lstset{
@@ -50,31 +70,41 @@
 % Title page
 \begin{titlepage}
     \centering
-    \vspace*{1cm}
-    \includegraphics[width=0.5\textwidth]{https://via.placeholder.com/400x200?text=Project+Logo}\\[1cm]
+    \vspace*{0cm}
+    \includegraphics[width=0.5\textwidth]{https://via.placeholder.com/400x200?text=Project+Logo}\\[0cm]
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.5\linewidth]{logo.png}
+        \label{fig:enter-label}
+    \end{figure}
+    \textsc{\LARGE Distributed Systems Course}\\[0.4cm]
+    \textsc{\Large Spring 2025}\\[0.4cm]
     
-    \textsc{\LARGE Distributed Systems Course}\\[0.5cm]
-    \textsc{\Large Spring 2025}\\[0.5cm]
-    
-    \rule{\linewidth}{0.2mm}\\[0.4cm]
+    \rule{\linewidth}{0.2mm}\\[0.3cm]
     { \huge \bfseries Distributed Web Crawling and Indexing System\\
     Final Project Report}\\
-    \rule{\linewidth}{0.2mm}\\[1.5cm]
+    \rule{\linewidth}{0.15mm}\\[1.5cm]
     
-    \begin{minipage}{0.4\textwidth}
+    \begin{minipage}{0.55\textwidth}
         \begin{flushleft} \large
             \emph{Submitted By:}\\
-            Student Name\\
-            Student ID
+            Ali Tarek Abdelmonim 21P0123\\
+            Mohamed Mostafa Mamdouh 21P0244\\
+            Mohamed Walid Helmy 21P0266\\
+            Tsneam Ahmed Eliwa Zky 21P0284\\
         \end{flushleft}
     \end{minipage}~
     \begin{minipage}{0.4\textwidth}
         \begin{flushright} \large
             \emph{Supervised By:} \\
-            Professor Name
+            Dr Ayman Bahaa\\
+            Dr Hossam Mohamed\\
+            Eng Al'aa Hamdy\\
+            Eng Mostafa Ashraf\\
         \end{flushright}
     \end{minipage}\\[2cm]
-    
+    \uline{\href{https://drive.google.com/drive/folders/1iCCx7A3Jf54sl7szdAXko1SLWDfB3Sef}{Video Link}}\hspace{1cm}\uline{\href{https://github.com/mohamedmostafam0/Distributed-Web-Crawling-and-Indexing-System-GCP}{Github Link}}\\
+   \centering \textbf{Phase 4  Last Documentation  Team 11} \\
     {\large \today}
     
     \vfill
@@ -126,7 +156,126 @@ The system consists of several key components:
     \item \textbf{Storage Layer}: Elasticsearch for indexing and Cloud Storage for data
     \item \textbf{GCP Services}: Pub/Sub for messaging and Cloud Run
 \end{itemize}
+\newpage
+\section{High-Level Architecture Diagrams}
+\begin{figure}[htb!]
+\centering
+\includegraphics[width=0.8\linewidth]{System Architecture.jpeg}
+\caption{System Architecture Design}
+\label{fig:enter-label}
+\end{figure}
+\subsection{System Architecture Design}
+\textbf{Purpose:} Provide a clear overview of the entire system and its major components.
 
+\textbf{Content:}
+\begin{itemize}
+\item Components:
+\begin{itemize}
+    \item Client Layer (UI)
+    \item Master Node
+    \item Crawler Nodes
+    \item Indexer Nodes
+    \item Task Queue (Pub/Sub)
+    \item Persistent Storage (GCS)
+\end{itemize}
+\item Data flow:
+\begin{itemize}
+    \item User submits crawl jobs to Master Node via UI.
+    \item Master Node assigns tasks to Crawler Nodes via Pub/Sub.
+    \item Crawler Nodes send processed content to Pub/Sub for Indexer Nodes.
+    \item Indexer Nodes store indexed data and serve queries from UI.
+\end{itemize}
+\end{itemize}
+
+\subsection{Component Interaction}
+\textbf{Purpose:} Illustrate how system components interact with each other during the crawling and indexing process.
+
+\textbf{Content:}
+\begin{itemize}
+\item Interactions:
+\begin{itemize}
+    \item UI submits crawl jobs to Master Node.
+    \item Master Node publishes tasks to Pub/Sub, which Crawler Nodes subscribe to.
+    \item Crawler Nodes fetch URLs, process data, and publish results to Pub/Sub for indexing.
+    \item Indexer Nodes subscribe to processed data, build indexes, and store them in GCS.
+    \item UI queries indexed data via Indexer Nodes.
+\end{itemize}
+\item Include key APIs and communication protocols.
+\end{itemize}
+
+\subsection{Data Flow}
+\textbf{Purpose:} Show the flow of data between components throughout the system.
+
+\textbf{Content:}
+\begin{itemize}
+\item Seed URLs and parameters flow from UI to Master Node.
+\item Master Node breaks tasks and publishes to Pub/Sub for Crawler Nodes.
+\item Crawler Nodes process data and publish it back to Pub/Sub for Indexer Nodes.
+\item Indexer Nodes build indexes and store them in GCS.
+\item Indexed data serves search queries from the UI.
+\item Highlight different types of data (raw HTML, processed text, indexed content).
+\end{itemize}
+
+\subsection{Fault Tolerance Mechanism}
+\textbf{Purpose:} Highlight strategies for handling component failures.
+
+\textbf{Content:}
+\begin{itemize}
+\item Task reassignment from failed Crawler Nodes by the Master Node.
+\item Data replication and recovery for Indexer Nodes.
+\item Reliable messaging in Pub/Sub.
+\item Durable storage in GCS for persistence.
+\item Illustrate heartbeat monitoring and task timeout mechanisms.
+\end{itemize}
+
+\subsection{Deployment}
+\textbf{Purpose:} Visualize the system's deployment in the cloud.
+
+\textbf{Content:}
+\begin{itemize}
+\item Cloud resources:
+\begin{itemize}
+    \item VM instances for Master Node, Crawler Nodes, and Indexer Nodes.
+    \item GCP Pub/Sub for messaging.
+    \item GCS for storage.
+\end{itemize}
+\item Specify configuration details (e.g., VM types, network setup).
+\end{itemize}
+
+\subsection{Sequence for a Crawl Job}
+\textbf{Purpose:} Detail the steps involved in initiating and executing a crawl job.
+
+\textbf{Content:}
+\begin{itemize}
+\item UI sending job request to Master Node.
+\item Master Node assigning tasks to Crawler Nodes.
+\item Crawler Nodes processing URLs and sending results to Indexer Nodes.
+\item Indexer Nodes building the index and storing it in GCS.
+\item UI querying indexed data from Indexer Nodes.
+\end{itemize}
+\newpage
+    \section{Project Planning}
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.8\linewidth]{Project Planning.jpeg}
+    \caption{Project Planning}
+    \label{fig:enter-label}
+\end{figure}
+\section{Team Roles and Responsibilities}
+
+\subsection{Roles}
+
+\textbf{Architect:} Designs the system architecture, focusing on interactions and fault tolerance strategies. \\
+\hspace{10pt} \textit{Assigned to:} Ali Tarek\\
+\textbf{Crawler Lead:} Implements the distributed web crawling functionality and ensures politeness measures. \\
+\hspace{10pt} \textit{Assigned to:} Tsneam Ahmed\\
+\textbf{Indexer Lead:} Develops the indexing mechanism and search functionality. \\
+\hspace{10pt} \textit{Assigned to:} Mohamed Mostafa\\
+\textbf{Cloud Infrastructure Lead:} Configures and manages cloud computing resources. \\
+\hspace{10pt} \textit{Assigned to:} Mohamed Mostafa\\
+\textbf{Tester/Documentation Lead:} Tests system components and ensures thorough documentation. \\
+\hspace{10pt} \textit{Assigned to:} Mohamed Walid\\
+\newpage
 \section{Report Structure}
 This report is organized as follows:
 \begin{itemize}
@@ -298,58 +447,6 @@ Rigorous fault tolerance testing was conducted to ensure the system can recover 
 \section{Scalability Testing}
 Systematic scalability testing was conducted to evaluate the system's performance under various loads.
 
-\subsection{Crawler Scalability}
-\begin{table}[H]
-    \centering
-    \begin{tabularx}{\textwidth}{|X|X|X|X|}
-        \hline
-        \textbf{Number of Crawler Nodes} & \textbf{URLs Crawled/Minute} & \textbf{CPU Utilization} & \textbf{Memory Usage} \\
-        \hline
-        1 & 60 & 75\% & 1.2 GB \\
-        \hline
-        2 & 115 & 70\% & 1.1 GB per node \\
-        \hline
-        4 & 220 & 65\% & 1.0 GB per node \\
-        \hline
-        8 & 410 & 60\% & 0.95 GB per node \\
-        \hline
-        16 & 750 & 55\% & 0.9 GB per node \\
-        \hline
-    \end{tabularx}
-    \caption{Crawler Scalability Test Results}
-\end{table}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.8\textwidth]{https://via.placeholder.com/800x400?text=Crawler+Scalability+Graph}
-    \caption{Crawler Scalability: URLs Crawled/Minute vs. Number of Nodes}
-\end{figure}
-
-\subsection{Indexer Scalability}
-\begin{table}[H]
-    \centering
-    \begin{tabularx}{\textwidth}{|X|X|X|X|}
-        \hline
-        \textbf{Number of Indexer Nodes} & \textbf{Documents Indexed/Minute} & \textbf{CPU Utilization} & \textbf{Memory Usage} \\
-        \hline
-        1 & 80 & 70\% & 1.5 GB \\
-        \hline
-        2 & 155 & 65\% & 1.4 GB per node \\
-        \hline
-        4 & 290 & 60\% & 1.3 GB per node \\
-        \hline
-        8 & 520 & 55\% & 1.2 GB per node \\
-        \hline
-    \end{tabularx}
-    \caption{Indexer Scalability Test Results}
-\end{table}
-
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.8\textwidth]{https://via.placeholder.com/800x400?text=Indexer+Scalability+Graph}
-    \caption{Indexer Scalability: Documents Indexed/Minute vs. Number of Nodes}
-\end{figure}
-
 \subsection{System Bottlenecks}
 During scalability testing, several bottlenecks were identified:
 \begin{itemize}
@@ -358,68 +455,6 @@ During scalability testing, several bottlenecks were identified:
     \item Network bandwidth limitations when crawling image-heavy websites
     \item Master node coordination overhead with large numbers of crawler nodes
 \end{itemize}
-
-\section{Crawl Quality Evaluation}
-The quality of the crawling process was evaluated based on several metrics.
-
-\subsection{Coverage Analysis}
-\begin{table}[H]
-    \centering
-    \begin{tabularx}{\textwidth}{|X|X|}
-        \hline
-        \textbf{Metric} & \textbf{Result} \\
-        \hline
-        Average pages crawled per domain & 120 \\
-        \hline
-        Percentage of broken links encountered & 4.2\% \\
-        \hline
-        Percentage of redirects followed & 12.7\% \\
-        \hline
-        Average crawl depth achieved & 3.8 (when set to 4) \\
-        \hline
-        Content type distribution & HTML: 82\%, PDF: 7\%, Images: 5\%, Other: 6\% \\
-        \hline
-    \end{tabularx}
-    \caption{Crawl Coverage Analysis}
-\end{table}
-
-\subsection{Politeness Verification}
-\begin{table}[H]
-    \centering
-    \begin{tabularx}{\textwidth}{|X|X|}
-        \hline
-        \textbf{Politeness Metric} & \textbf{Result} \\
-        \hline
-        robots.txt compliance rate & 100\% \\
-        \hline
-        Average delay between requests to same domain & 1.2 seconds \\
-        \hline
-        Maximum requests per second to any domain & 0.8 req/sec \\
-        \hline
-        Percentage of domains with crawl-delay honored & 100\% \\
-        \hline
-    \end{tabularx}
-    \caption{Crawl Politeness Verification}
-\end{table}
-
-\subsection{Content Quality}
-\begin{table}[H]
-    \centering
-    \begin{tabularx}{\textwidth}{|X|X|}
-        \hline
-        \textbf{Quality Metric} & \textbf{Result} \\
-        \hline
-        Average content extraction accuracy & 94\% \\
-        \hline
-        Percentage of pages with proper title extraction & 98\% \\
-        \hline
-        Percentage of pages with proper metadata extraction & 87\% \\
-        \hline
-        Duplicate content detection rate & 99\% \\
-        \hline
-    \end{tabularx}
-    \caption{Content Quality Analysis}
-\end{table}
 
 
 \section{Refinements}
@@ -494,28 +529,101 @@ Performance analysis identified several bottlenecks in the system.
     \item Implemented caching for frequently accessed data
 \end{itemize}
 
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=0.8\textwidth]{https://via.placeholder.com/800x400?text=Performance+Improvement+Graph}
-    \caption{System Performance Before and After Optimization}
-\end{figure}
+
 
 \chapter{Security Review}
 
-\section{Access Control}
+\section{Access Control and Authentication}
+The system implements a comprehensive access control strategy:
+
+\subsection{Service Account Management}
 \begin{itemize}
-    \item Implemented IAM roles and permissions for GCP resources
-    \item Secured API endpoints with authentication
-    \item Restricted network access to system components
-    \item Implemented least privilege principle for service accounts
+\item \textbf{Least Privilege Principle}:
+    \begin{itemize}
+        \item Created dedicated service account for instances with minimal required permissions
+        \item Assigned specific IAM roles based on component needs:
+            \begin{itemize}
+                \item Pub/Sub Publisher/Subscriber roles
+                \item Storage Object Admin role
+                \item Logging and Monitoring Writer roles
+            \end{itemize}
+    \end{itemize}
+\item \textbf{Role-Based Access Control}:
+    \begin{itemize}
+        \item Implemented granular IAM role bindings
+        \item Separated permissions for master, crawler, and indexer nodes
+        \item Used custom roles for specific operations
+    \end{itemize}
+\end{itemize}
+
+\subsection{Network Security}
+\begin{itemize}
+\item \textbf{VPC Configuration}:
+    \begin{itemize}
+        \item Created dedicated VPC network with manual subnetwork creation
+        \item Implemented regional routing mode for better control
+        \item Configured specific CIDR ranges for subnets
+    \end{itemize}
+\item \textbf{Firewall Rules}:
+    \begin{itemize}
+        \item Restricted SSH access to specific IP ranges
+        \item Implemented internal traffic rules between components
+        \item Configured explicit egress rules
+        \item Used network tags for component-specific rules
+    \end{itemize}
 \end{itemize}
 
 \section{Data Security}
+
+\subsection{Storage Security}
 \begin{itemize}
-    \item Encrypted sensitive configuration data
-    \item Implemented secure storage of credentials
-    \item Ensured HTTPS for all external communications
-    \item Sanitized user inputs to prevent injection attacks
+\item \textbf{Cloud Storage Protection}:
+    \begin{itemize}
+        \item Enabled uniform bucket-level access
+        \item Implemented versioning for data recovery
+        \item Configured bucket-level IAM policies
+        \item Used secure default storage class
+    \end{itemize}
+\item \textbf{Data Encryption}:
+    \begin{itemize}
+        \item Enabled encryption at rest for all storage
+        \item Implemented HTTPS for all external communications
+        \item Used secure transport for internal communications
+    \end{itemize}
+\end{itemize}
+
+\subsection{Application Security}
+\begin{itemize}
+\item \textbf{Input Validation}:
+    \begin{itemize}
+        \item Added parameter validation
+        \item Used parameterized queries
+        \item Implemented rate limiting
+    \end{itemize}
+\item \textbf{Authentication}:
+    \begin{itemize}
+        \item Secured credentials using environment variables
+        \item Used GCP Secret Manager for sensitive data
+    \end{itemize}
+\end{itemize}
+
+\section{Monitoring and Compliance}
+
+\subsection{Security Monitoring}
+\begin{itemize}
+\item \textbf{Health Checks}:
+    \begin{itemize}
+        \item Implemented uptime monitoring for all components
+        \item Configured SSL validation for health checks
+        \item Set up alerting for security events
+    \end{itemize}
+\item \textbf{Logging}:
+    \begin{itemize}
+        \item Enabled comprehensive audit logging
+        \item Implemented structured logging
+        \item Configured log retention policies
+        \item Set up log-based monitoring
+    \end{itemize}
 \end{itemize}
 
 \chapter{System Documentation}
@@ -581,242 +689,1430 @@ Comprehensive monitoring and logging infrastructure:
     \item \textbf{Performance Monitoring}: Real-time monitoring of system performance metrics with historical data retention for trend analysis.
 \end{itemize}
 
+
 \section{Code Documentation}
-Code documentation includes:
-\begin{itemize}
-    \item Comprehensive inline comments
-    \item Function and class documentation
-    \item Module descriptions
-    \item API documentation
-    \item Code examples
-    \item Development guidelines
-\end{itemize}
+\subsection{Inline Comments}
+Inline comments should be used to explain complex logic, non-obvious implementations, and important decisions. They should be clear, concise, and add value to the code understanding.
 
-\subsection{Component Documentation}
-Detailed documentation of each system component:
+\begin{lstlisting}[language=Python]
+# Example from CrawlerNode class
+def normalize_url(self, url):
+"""Normalize URLs to avoid recrawling duplicates (e.g., remove fragments, trailing slashes)."""
+parsed = urlparse(url)
+normalized = parsed._replace(fragment="", path=re.sub(r'/$', '', parsed.path)).geturl()
+return normalized.lower()
 
-\subsubsection{UI Layer (Flask Web Application)}
-\begin{itemize}
-    \item \textbf{Purpose}: Provides user interface for managing crawl tasks and searching indexed content
-    \item \textbf{Main Components}:
-    \begin{itemize}
-        \item \texttt{main.py}: Core application file with route definitions and request handlers
-        \item \texttt{templates/}: HTML templates for rendering UI views
-        \item \texttt{static/}: CSS, JavaScript, and image assets
-    \end{itemize}
-    \item \textbf{Key Functions}:
-    \begin{itemize}
-        \item Task submission and configuration
-        \item Real-time progress monitoring via Pub/Sub subscription
-        \item System health dashboard with component status
-        \item Search interface with filtering and sorting options
-        \item Result export functionality
-    \end{itemize}
-    \item \textbf{Integration Points}: Communicates with Master node via Pub/Sub for task submission, subscribes to progress updates, and connects to Elasticsearch for search operations
-\end{itemize}
+# Example from MasterNode class
+def _validate_config(self):
+# Check for required environment variables
+required = {
+    "GCP_PROJECT_ID": self.PROJECT_ID,
+    "CRAWL_TASKS_TOPIC_ID": self.CRAWL_TASKS_TOPIC_ID,
+    "GCS_BUCKET_NAME": self.GCS_BUCKET_NAME
+}
+missing = [k for k, v in required.items() if not v]
+if missing:
+    logging.error(f"Missing essential environment variables: {', '.join(missing)}")
+    exit(1)
+\end{lstlisting}
 
-\subsubsection{Master Node}
-\begin{itemize}
-    \item \textbf{Purpose}: Central coordinator for the distributed crawling system
-    \item \textbf{Main Components}:
-    \begin{itemize}
-        \item \texttt{master\_server.py}: Main entry point that initializes the master node
-        \item \texttt{task\_manager.py}: Handles task creation, scheduling, and status tracking
-        \item \texttt{url\_frontier.py}: Manages the global URL queue with prioritization logic
-        \item \texttt{node\_registry.py}: Tracks active crawler and indexer nodes
-    \end{itemize}
-    \item \textbf{Key Functions}:
-    \begin{itemize}
-        \item Processing crawl job requests from UI
-        \item Distributing URLs to crawler nodes based on domain balancing
-        \item Tracking crawl progress and handling node failures
-        \item Managing task state persistence using Cloud Storage
-        \item Implementing backpressure mechanisms when system is overloaded
-    \end{itemize}
-    \item \textbf{Fault Tolerance}: Implements leader election with backup master nodes, state persistence, and recovery mechanisms
-\end{itemize}
+\subsection{Function and Class Documentation}
+Functions and classes should be documented using docstrings that follow a consistent format. The documentation should include purpose, parameters, return values, and examples.
 
-\subsubsection{Crawler Nodes}
-\begin{itemize}
-    \item \textbf{Purpose}: Fetch web pages, extract links, and process content
-    \item \textbf{Main Components}:
-    \begin{itemize}
-        \item \texttt{crawler\_worker.py}: Main worker process that fetches URLs
-        \item \texttt{robots\_manager.py}: Handles robots.txt parsing and politeness enforcement
-        \item \texttt{html\_processor.py}: Extracts links and content from HTML documents
-        \item \texttt{content\_extractor.py}: Specialized extractors for different content types (PDF, Images)
-    \end{itemize}
-    \item \textbf{Key Functions}:
-    \begin{itemize}
-        \item Fetching web pages with proper HTTP handling
-        \item Respecting robots.txt and implementing politeness delays
-        \item Parsing HTML to extract links and content
-        \item Detecting content type and applying appropriate extraction
-        \item Publishing extracted content to indexer queue
-        \item Reporting crawl progress and newly discovered URLs
-    \end{itemize}
-    \item \textbf{Performance Optimizations}: Connection pooling, asynchronous I/O, and content filtering
-\end{itemize}
+\begin{lstlisting}[language=Python]
+# Example from CrawlerNode class
+class CrawlerNode:
+"""
+Handles web crawling operations for a single domain.
 
-\subsubsection{Indexer Nodes}
-\begin{itemize}
-    \item \textbf{Purpose}: Process crawled content and index it in Elasticsearch
-    \item \textbf{Main Components}:
-    \begin{itemize}
-        \item \texttt{indexer\_worker.py}: Main indexer process that consumes content messages
-        \item \texttt{document\_processor.py}: Prepares documents for indexing
-        \item \texttt{elasticsearch\_client.py}: Wrapper for Elasticsearch operations
-        \item \texttt{duplicate\_detector.py}: Implements content-based duplicate detection
-    \end{itemize}
-    \item \textbf{Key Functions}:
-    \begin{itemize}
-        \item Processing content from crawler nodes
-        \item Extracting and normalizing metadata (title, description, keywords)
-        \item Performing text cleaning and tokenization
-        \item Detecting and handling duplicate content
-        \item Managing bulk indexing operations for efficiency
-        \item Implementing index versioning and updates
-    \end{itemize}
-    \item \textbf{Elasticsearch Integration}: Custom mappings, analyzers, and query templates
-\end{itemize}
+This class manages the crawling process, including URL fetching,
+content extraction, and rate limiting. It ensures compliance with
+robots.txt rules and implements polite crawling practices.
 
-\subsubsection{Communication Layer}
-\begin{itemize}
-    \item \textbf{Purpose}: Enable reliable message passing between distributed components
-    \item \textbf{Main Components}:
-    \begin{itemize}
-        \item \texttt{pubsub\_client.py}: Wrapper for Google Pub/Sub operations
-        \item \texttt{message\_handlers.py}: Message serialization and deserialization
-        \item \texttt{retry\_utils.py}: Implements retry logic with exponential backoff
-    \end{itemize}
-    \item \textbf{Key Functions}:
-    \begin{itemize}
-        \item Publishing task messages from Master to Crawler nodes
-        \item Forwarding crawled content from Crawler to Indexer nodes
-        \item Broadcasting progress updates to UI subscribers
-        \item Implementing reliable delivery with acknowledgments
-        \item Handling message batching for efficiency
-    \end{itemize}
-    \item \textbf{Message Types}: Task assignments, URL discoveries, content messages, status updates, and health checks
-\end{itemize}
+Attributes:
+    hostname (str): Unique identifier for this crawler node
+    seen_urls (set): Set of already crawled URLs
+    REQUESTS_TIMEOUT (int): Timeout for HTTP requests
+    POLITE_DELAY (int): Delay between requests to same domain
+    USER_AGENT (str): User agent string for HTTP requests
+"""
 
-\subsubsection{Storage Layer}
-\begin{itemize}
-    \item \textbf{Purpose}: Provide persistent storage for system state and crawled data
-    \item \textbf{Main Components}:
-    \begin{itemize}
-        \item \texttt{storage\_client.py}: Wrapper for Google Cloud Storage operations
-        \item \texttt{state\_manager.py}: Handles state persistence and recovery
-        \item \texttt{elasticsearch\_service.py}: Manages Elasticsearch index configuration
-    \end{itemize}
-    \item \textbf{Key Functions}:
-    \begin{itemize}
-        \item Storing task state for recovery after failures
-        \item Archiving crawled content for compliance and debugging
-        \item Managing Elasticsearch indices with lifecycle policies
-        \item Implementing backup and restore functionality
-        \item Providing data access for analytics and reporting
-    \end{itemize}
-    \item \textbf{Data Organization}: Structured storage with task-based partitioning and time-based rotation
-\end{itemize}
+def process_crawl_task(self, message: pubsub_v1.subscriber.message.Message):
+    """
+    Process an incoming crawl task message.
+    
+    Args:
+        message: Pub/Sub message containing crawl task data
+        
+    The message should contain:
+        - url: Target URL to crawl
+        - task_id: Unique identifier for the task
+        - depth: Current crawl depth
+        - domain_restriction: Optional domain restriction
+        
+    Returns:
+        None
+        
+    Raises:
+        JSONDecodeError: If message data is invalid JSON
+        Exception: For unexpected errors during processing
+    """
+    pass
+\end{lstlisting}
+
+\subsection{Module Descriptions}
+Each module should have a clear description of its purpose, dependencies, and usage. The documentation should be placed at the top of the module file.
+
+\begin{lstlisting}[language=Python]
+# Example from indexer_node.py
+"""
+Indexer Node Module
+
+This module implements the indexing functionality for the distributed
+web crawling system. It processes crawled content and indexes it in
+Elasticsearch for search capabilities.
+
+Key Features:
+- Content extraction and processing
+- Elasticsearch indexing
+- Health monitoring
+- Progress tracking
+- Fault tolerance
+
+Dependencies:
+google-cloud-pubsub>=2.0.0
+google-cloud-storage>=2.0.0
+elasticsearch>=7.0.0
+python-dotenv>=0.19.0
+
+Configuration:
+ES_HOST: Elasticsearch host
+ES_PORT: Elasticsearch port
+ES_USERNAME: Elasticsearch username
+ES_PASSWORD: Elasticsearch password
+ES_INDEX_NAME: Name of the Elasticsearch index
+"""
+\end{lstlisting}
 
 \subsection{API Documentation}
-\begin{itemize}
-    \item \textbf{Internal APIs}: Documented interfaces between system components
-    \item \textbf{External APIs}: User-facing endpoints for UI and programmatic access
-    \item \textbf{Message Formats}: JSON schema definitions for all message types
-    \item \textbf{Error Codes}: Standardized error reporting across the system
-\end{itemize}
+API endpoints should be thoroughly documented, including request/response formats, authentication requirements, and error handling.
+
+\begin{lstlisting}[language=Python]
+# Example from main.py (UI)
+@app.route("/search/index", methods=["GET"])
+def search_index():
+"""
+Search indexed content.
+
+This endpoint allows searching through indexed web content
+using Elasticsearch.
+
+Query Parameters:
+    q (str): Search query string
+    
+Returns:
+    JSON response containing:
+        - results: List of matching documents
+        - error: Error message if search fails
+        
+Status Codes:
+    200: Search successful
+    400: Invalid query
+    500: Server error
+    
+Example:
+    GET /search/index?q=distributed systems
+    Response:
+    {
+        "results": [
+            {
+                "url": "https://example.com",
+                "title": "Example Page",
+                "snippet": "...matching content..."
+            }
+        ]
+    }
+"""
+pass
+\end{lstlisting}
+
+\subsection{Code Examples}
+Code examples should demonstrate common use cases, best practices, and proper error handling.
+
+\begin{lstlisting}[language=Python]
+# Example from MasterNode class
+def handle_new_job(self, message: pubsub_v1.subscriber.message.Message):
+"""
+Handle incoming crawl job requests.
+
+This function demonstrates proper error handling and logging
+for processing new crawl jobs.
+"""
+try:
+    # Decode and validate message
+    data_str = message.data.decode("utf-8").strip()
+    if not data_str:
+        logging.error("Received empty message from Pub/Sub.")
+        message.ack()
+        return
+        
+    # Parse job metadata
+    job_meta = json.loads(data_str)
+    task_id = job_meta.get("task_id")
+    gcs_path = job_meta.get("gcs_path")
+    
+    # Validate required fields
+    if not task_id or not gcs_path:
+        logging.error("Missing task_id or gcs_path in the message.")
+        message.ack()
+        return
+        
+    # Process job
+    self.total_jobs_received += 1
+    self.publish_progress_metric("job_received", extra={"job_id": task_id})
+    
+    # Acknowledge successful processing
+    message.ack()
+    
+except json.JSONDecodeError as e:
+    logging.error(f"Failed to parse JSON: {e}")
+    message.ack()
+except Exception as e:
+    logging.error(f"Failed to process incoming crawl job: {e}", exc_info=True)
+    message.nack()
+\end{lstlisting}
 
 \subsection{Development Guidelines}
+Development guidelines should cover coding standards, testing requirements, and best practices.
+
+\begin{lstlisting}[language=Python]
+# Development Guidelines Examples from the Project
+
+# 1. Environment Configuration
+def _load_config(self):
+"""
+Load configuration from environment variables.
+Demonstrates proper error handling and validation.
+"""
+try:
+    self.PROJECT_ID = os.environ["GCP_PROJECT_ID"]
+    self.GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
+    self.MAX_DEPTH = int(os.environ["MAX_DEPTH"])
+except KeyError as e:
+    print(f"Error: Environment variable {e} not set.")
+    exit(1)
+except ValueError as e:
+    print(f"Error: Environment variable MAX_DEPTH must be an integer: {e}")
+    exit(1)
+
+# 2. Health Monitoring
+def publish_health_status(self):
+"""
+Publish node health status.
+Demonstrates proper status reporting and error handling.
+"""
+health_msg = {
+    "node_type": "crawler",
+    "hostname": socket.gethostname(),
+    "status": "online",
+    "timestamp": datetime.utcnow().isoformat()
+}
+self.publish_message(self.health_topic_path, health_msg)
+
+# 3. Resource Management
+def _init_clients(self):
+"""
+Initialize cloud service clients.
+Demonstrates proper resource initialization and error handling.
+"""
+try:
+    self.subscriber = pubsub_v1.SubscriberClient()
+    self.publisher = pubsub_v1.PublisherClient()
+    self.storage_client = storage.Client()
+except Exception as e:
+    logging.error(f"Failed to initialize Google Cloud clients: {e}", exc_info=True)
+    exit(1)
+\end{lstlisting}
+
+
+\section{The crawler:}
 \begin{itemize}
-    \item Coding standards and style guide
-    \item Testing requirements and coverage expectations
-    \item Pull request and code review process
-    \item Versioning and release procedures
-    \item Contribution workflow for new features and bug fixes
+    \item Fetches web content while respecting robots.txt rules.
+    \item Publishes messages to Pub/Sub queues for task distribution.
+    \item Stores processed data in Google Cloud Storage.
+    \item Extracts and normalizes URLs for further crawling.
+\end{itemize}
+\subsection{Crawler Node Implementation}
+Here details the implementation of a distributed web crawler using Python.
+\subsection{Class Definition and Initialization}
+    The crawler is structured within a Python class to handle task processing and communication with cloud services.
+\begin{lstlisting}[language=Python]
+import os
+import logging
+import time
+import json
+import uuid
+import requests
+import socket
+import threading
+import re
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+from urllib.robotparser import RobotFileParser
+from urllib.error import URLError
+from datetime import datetime
+from google.cloud import pubsub_v1, storage
+from google.api_core import exceptions
+from concurrent.futures import TimeoutError
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class CrawlerNode:
+def __init__(self):
+    self.hostname = os.environ.get("HOSTNAME", "crawler")
+    self._setup_logging()
+    self._load_config()
+    self._init_clients()
+    self.seen_urls = set()
+    self.robots_cache = {} 
+    self.REQUESTS_TIMEOUT = 10
+    self.POLITE_DELAY = 1
+    self.USER_AGENT = "MyDistributedCrawler/1.0 (+http://example.com/botinfo)"
+\end{lstlisting}
+\newpage
+\subsection{Configuration and Cloud Clients Initialization}
+Environment variables are loaded for configuration, and Google Cloud clients are initialized.
+\begin{lstlisting}[language=Python]
+def _load_config(self):
+try:
+    self.PROJECT_ID = os.environ["GCP_PROJECT_ID"]
+    self.GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
+    self.MAX_DEPTH = int(os.environ["MAX_DEPTH"])
+except KeyError as e:
+    print(f"Error: Environment variable {e} not set.")
+    exit(1)
+
+def _init_clients(self):
+self.subscriber = pubsub_v1.SubscriberClient()
+self.publisher = pubsub_v1.PublisherClient()
+self.storage_client = storage.Client()
+\end{lstlisting}
+
+\subsection{Processing Crawl Tasks}
+The crawler processes incoming crawl jobs from Pub/Sub.
+\begin{lstlisting}[language=Python]
+def process_crawl_task(self, message: pubsub_v1.subscriber.message.Message):
+data_str = message.data.decode("utf-8")
+task_data = json.loads(data_str)
+url = task_data.get("url")
+task_id = task_data.get("task_id", "N/A")
+depth = int(task_data.get("depth", 0))
+
+if not url.startswith('http'):
+    logging.warning(f"Invalid URL: {url}")
+    message.ack()
+    return
+
+normalized_url = self.normalize_url(url)
+if normalized_url in self.seen_urls:
+    logging.info(f"Skipping seen URL: {normalized_url}")
+    message.ack()
+    return
+\end{lstlisting}
+\newpage
+\subsection{Fetching Web Content and Storing Data}
+The crawler fetches HTML content and stores extracted data in cloud storage.
+\begin{lstlisting}[language=Python]
+headers = {'User-Agent': self.USER_AGENT}
+response = requests.get(url, timeout=self.REQUESTS_TIMEOUT, headers=headers)
+response.raise_for_status()
+html_content = response.text
+content_id = str(uuid.uuid4())
+
+gcs_raw_path = self.save_to_gcs(self.GCS_BUCKET_NAME, f"raw_html/{content_id}.html", html_content, "text/html")
+
+soup = BeautifulSoup(html_content, 'html.parser')
+text_content = ' '.join(soup.stripped_strings)
+
+gcs_processed_path = self.save_to_gcs(self.GCS_BUCKET_NAME, f"processed_text/{content_id}.txt", text_content, "text/plain")
+\end{lstlisting}
+
+\subsection{Extracting and Publishing New URLs}
+Discovered URLs are processed and sent to a Pub/Sub queue for further crawling.
+\begin{lstlisting}[language=Python]
+new_urls = []
+links = soup.find_all('a', href=True)
+for link in links:
+href = link['href'].strip()
+new_url = urljoin(url, href)
+parsed_new_url = urlparse(new_url)
+
+if parsed_new_url.scheme in ['http', 'https'] and parsed_new_url.netloc:
+    normalized_new_url = self.normalize_url(new_url)
+    if normalized_new_url not in self.seen_urls:
+        self.seen_urls.add(normalized_new_url)
+        new_urls.append(normalized_new_url)
+
+self.publish_new_urls_to_master(new_urls, task_id, depth + 1)
+\end{lstlisting}
+\newpage
+\subsection{Health Monitoring and Execution}
+The crawler sends periodic health status and starts processing incoming tasks.
+\begin{lstlisting}[language=Python]
+def start_health_heartbeat(self):
+def loop():
+    while True:
+        health_msg = {"node_type": "crawler", "hostname": socket.gethostname(), "status": "online"}
+        self.publish_message(self.health_topic_path, health_msg)
+        time.sleep(30)
+threading.Thread(target=loop, daemon=True).start()
+
+def run(self):
+logging.info("Crawler node starting...")
+self.start_health_heartbeat()
+streaming_pull_future = self.subscriber.subscribe(self.subscription_path, callback=self.process_crawl_task)
+streaming_pull_future.result()
+\end{lstlisting}
+
+\subsection{Conclusion}
+This crawler efficiently fetches, processes, and distributes web content while maintaining respect for robots.txt policies. Future enhancements may include:
+\begin{itemize}
+\item Improved indexing for better search functionality.
+\item Enhanced fault tolerance mechanisms.
+\item Adaptive crawling policies based on web traffic analytics.
 \end{itemize}
 
-\section{Deployment Guide}
-The Deployment Guide covers:
+
+\textbf{Explanation of Main Sections:}
 \begin{itemize}
-    \item GCP resource setup
-    \item Environment configuration
-    \item Component deployment
-    \item Scaling configuration
-    \item Monitoring setup
-    \item Backup and recovery procedures
-    \item Maintenance tasks
+\item \textbf{Initialization:} Loads environment configurations and sets up logging.
+\item \textbf{Task Processing:} Retrieves and validates URLs before crawling.
+\item \textbf{Fetching Content:} Downloads web pages, extracts HTML and stores processed data.
+\item \textbf{Extracting Links:} Parses and identifies new URLs for further crawling.
+\item \textbf{Publishing Messages:} Sends crawled data to Pub/Sub queues for indexing.
+\item \textbf{Health Monitoring:} Keeps the crawler alive and reports its operational state.
+\end{itemize}
+\newpage
+\section{The indexer:}
+\begin{itemize}
+\item Retrieves processed text data from cloud storage.
+\item Indexes text content in Elasticsearch.
+\item Publishes messages to track progress.
+\item Ensures fault tolerance and retries failed tasks.
+\end{itemize}
+
+\subsection{Indexer Node Implementation}
+Here presents the implementation of an indexing node that is responsible for processing and storing crawled web pages in a distributed search system.
+\subsection{Class Definition and Initialization}
+The indexer is structured as a Python class to manage indexing tasks and connect to Elasticsearch.
+\begin{lstlisting}[language=Python]
+import os
+import logging
+import time
+import json
+from google.cloud import pubsub_v1, storage
+from google.api_core import exceptions
+from elasticsearch import Elasticsearch
+from dotenv import load_dotenv
+import socket
+import threading
+from datetime import datetime
+
+load_dotenv()
+
+class IndexerNode:
+def __init__(self):
+    self.hostname = os.environ.get("HOSTNAME", "indexer")
+    self._setup_logging()
+    self._load_config()
+    self._init_clients()
+    self._init_elasticsearch()
+\end{lstlisting}
+\newpage
+\subsection{Configuration and Cloud Clients Initialization}
+Environment variables are loaded for configuration, and Google Cloud clients are initialized.
+\begin{lstlisting}[language=Python]
+def _load_config(self):
+try:
+    self.PROJECT_ID = os.environ["GCP_PROJECT_ID"]
+    self.GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
+    self.ES_HOST = os.environ["ES_HOST"]
+    self.ES_PORT = int(os.environ["ES_PORT"])
+    self.ES_USERNAME = os.environ.get("ES_USERNAME")
+    self.ES_PASSWORD = os.environ.get("ES_PASSWORD")
+    self.ES_INDEX_NAME = os.environ["ES_INDEX_NAME"]
+except KeyError as e:
+    print(f"Error: Environment variable {e} not set.")
+    exit(1)
+\end{lstlisting}
+
+\subsection{Elasticsearch Integration}
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{elasticsearch_index.png}
+    \caption{Elasticsearch Index Structure and Data}
+    \label{fig:elasticsearch-index}
+\end{figure}
+
+The indexer connects to an Elasticsearch instance for indexing crawled content.
+\begin{lstlisting}[language=Python]
+def _init_elasticsearch(self):
+try:
+    es_url = f"https://{self.ES_USERNAME}:{self.ES_PASSWORD}@{self.ES_HOST}"
+    self.es_client = Elasticsearch(es_url, verify_certs=True)
+
+    if not self.es_client.ping():
+        raise ValueError("Elasticsearch connection failed")
+    logging.info(f"Connected to Elasticsearch at {self.ES_HOST}:{self.ES_PORT}")
+
+    if not self.es_client.indices.exists(index=self.ES_INDEX_NAME):
+        mapping = {
+            "mappings": {
+                "properties": {
+                    "url": {"type": "keyword"},
+                    "content": {"type": "text"}
+                }
+            }
+        }
+        self.es_client.indices.create(index=self.ES_INDEX_NAME, body=mapping)
+        logging.info(f"Created Elasticsearch index '{self.ES_INDEX_NAME}'")
+except Exception as e:
+    logging.error(f"Failed to initialize Elasticsearch: {e}", exc_info=True)
+    exit(1)
+\end{lstlisting}
+
+\subsection{Indexing Process}
+The indexer retrieves text content from cloud storage and indexes it in Elasticsearch.
+\begin{lstlisting}[language=Python]
+def process_indexing_task(self, message: pubsub_v1.subscriber.message.Message):
+data_str = message.data.decode("utf-8")
+task_data = json.loads(data_str)
+task_id = task_data.get("task_id", "N/A")
+url = task_data.get("final_url") or task_data.get("original_url")
+gcs_path = task_data.get("gcs_processed_path")
+
+if not url or not gcs_path:
+    logging.warning(f"Invalid task data: {data_str}")
+    message.ack()
+    return
+
+processed_text = self.download_from_gcs(self.GCS_BUCKET_NAME, gcs_path)
+if processed_text is None:
+    message.nack()
+    return
+
+if self.index_document(url, processed_text):
+    message.ack()
+    logging.info(f"Indexed task for {url}")
+\end{lstlisting}
+\newpage
+\subsection{Health Monitoring and Execution}
+The indexer node periodically sends health status updates and continuously listens for new indexing tasks.
+\begin{lstlisting}[language=Python]
+def start_health_heartbeat(self):
+def loop():
+    while True:
+        health_msg = {"node_type": "indexer", "hostname": socket.gethostname(), "status": "online"}
+        self.publish_message(self.health_topic_path, health_msg)
+        time.sleep(30)
+threading.Thread(target=loop, daemon=True).start()
+
+def run(self):
+logging.info("Indexer node starting...")
+self.start_health_heartbeat()
+streaming_pull_future = self.subscriber.subscribe(self.subscription_path, callback=self.process_indexing_task)
+try:
+    streaming_pull_future.result()
+except Exception as e:
+    logging.error(f"Subscriber error: {e}", exc_info=True)
+    streaming_pull_future.cancel()
+    streaming_pull_future.result()
+\end{lstlisting}
+
+\subsection{Conclusion}
+This indexer efficiently processes crawled data and integrates with Elasticsearch for scalable web search. Future enhancements could include:
+\begin{itemize}
+\item Distributed indexing with multiple nodes.
+\item Improved search query processing.
+\item Advanced document ranking mechanisms.
+\end{itemize}
+\textbf{Explanation of Key Sections:}
+\begin{itemize}
+\item \textbf{Initialization:} Loads environment variables and connects to cloud services.
+\item \textbf{Elasticsearch Setup:} Establishes a connection, creates indices for storing web content.
+\item \textbf{Task Handling:} Fetches processed text from storage and indexes it.
+\item \textbf{Health Monitoring:} Ensures fault tolerance by reporting the node status.
+\item \textbf{Execution Flow:} Listens for new indexing tasks and integrates with other components.
+\end{itemize}
+\section{The Master Node:}
+\begin{itemize}
+\item Manages crawler and indexer nodes.
+\item Assigns crawl tasks dynamically.
+\item Monitors system health and performance metrics.
+\item Publishes messages for indexing and reporting.
+\end{itemize}
+
+\subsection{Master Node Implementation}
+This section of document describes the implementation of the Master Node in a distributed web crawling system. 
+\subsection{Class Definition and Initialization}
+The Master Node acts as the central controller, distributing tasks to crawler nodes and monitoring system status.
+\begin{lstlisting}[language=Python]
+import os
+import logging
+import time
+import json
+import uuid
+import socket
+import threading
+from datetime import datetime
+from google.cloud import pubsub_v1, storage, monitoring_v3
+from dotenv import load_dotenv
+
+load_dotenv()
+
+class MasterNode:
+def __init__(self):
+    self._setup_logging()
+    self._load_config()
+    self._validate_config()
+    self._init_clients()
+    self.total_crawled = 0
+    self.total_jobs_received = 0
+\end{lstlisting}
+\newpage
+\subsection{Configuration and Validation}
+The system loads required environment configurations and validates essential parameters.
+\begin{lstlisting}[language=Python]
+def _load_config(self):
+try:
+    self.PROJECT_ID = os.environ["GCP_PROJECT_ID"]
+    self.CRAWL_TASKS_TOPIC_ID = os.environ["CRAWL_TASKS_TOPIC_ID"]
+    self.GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
+except KeyError as e:
+    logging.error(f"Missing environment variable: {e}")
+    exit(1)
+
+def _validate_config(self):
+required = {
+    "GCP_PROJECT_ID": self.PROJECT_ID,
+    "CRAWL_TASKS_TOPIC_ID": self.CRAWL_TASKS_TOPIC_ID,
+    "GCS_BUCKET_NAME": self.GCS_BUCKET_NAME
+}
+if any(not v for v in required.values()):
+    logging.error("Missing essential environment variables!")
+    exit(1)
+\end{lstlisting}
+
+\subsection{Task Publishing and Management}
+The Master Node publishes crawl tasks to Pub/Sub for crawler nodes to consume.
+\begin{lstlisting}[language=Python]
+def publish_crawl_task(self, url, depth=0, domain_restriction=None, source_job_id=None):
+task_id = str(uuid.uuid4())
+message_data = {
+    "task_id": task_id,
+    "url": url,
+    "depth": depth,
+    "domain_restriction": domain_restriction,
+    "source_job_id": source_job_id
+}
+data = json.dumps(message_data).encode("utf-8")
+
+try:
+    future = self.publisher.publish(self.crawl_topic_path, data)
+    future.result(timeout=30)
+    logging.info(f"Published task {task_id} for URL: {url}")
+    return True
+except Exception as e:
+    logging.error(f"Error publishing task for URL {url}: {e}")
+    return False
+\end{lstlisting}
+
+\subsection{Handling Incoming Jobs}
+When new jobs arrive, the Master Node parses them, retrieves seed URLs, and schedules crawl tasks.
+\begin{lstlisting}[language=Python]
+def handle_new_job(self, message: pubsub_v1.subscriber.message.Message):
+try:
+    data_str = message.data.decode("utf-8")
+    job_meta = json.loads(data_str)
+    task_id = job_meta.get("task_id")
+    gcs_path = job_meta.get("gcs_path")
+
+    if not task_id or not gcs_path:
+        logging.error("Missing task_id or gcs_path in the message.")
+        message.ack()
+        return
+
+    bucket = self.storage_client.bucket(self.GCS_BUCKET_NAME)
+    blob = bucket.blob(gcs_path.split("/")[-1])
+    job_data = json.loads(blob.download_as_text())
+    seed_urls = job_data.get("seed_urls", [])
+
+    for url in seed_urls:
+        self.publish_crawl_task(url, depth=0, source_job_id=task_id)
+
+    message.ack()
+\end{lstlisting}
+
+\subsection{Health Monitoring}
+The Master Node sends periodic health status reports to ensure operational reliability.
+\begin{lstlisting}[language=Python]
+def start_health_heartbeat(self):
+def loop():
+    while True:
+        health_msg = {"node_type": "master", "status": "online"}
+        self.publish_message(self.health_topic_path, health_msg)
+        time.sleep(30)
+threading.Thread(target=loop, daemon=True).start()
+\end{lstlisting}
+\newpage
+\subsection{Main Execution Flow}
+The system continuously listens for new job submissions and manages crawling workflows.
+\begin{lstlisting}[language=Python]
+def run(self):
+logging.info("Master node starting...")
+self.start_health_heartbeat()
+
+try:
+    future = self.subscriber.subscribe(self.subscription_path, callback=self.handle_new_job)
+    future.result()
+except KeyboardInterrupt:
+    logging.info("Shutting down gracefully...")
+    future.cancel()
+    future.result()
+\end{lstlisting}
+
+\subsection{Conclusion}
+The Master Node efficiently manages distributed crawling tasks while ensuring resilience through health monitoring and fault tolerance mechanisms. Future improvements could include:
+\begin{itemize}
+\item Load balancing for optimal task distribution.
+\item Automated failure recovery for worker nodes.
+\item Enhanced analytics and monitoring tools.
+\end{itemize}
+\textbf{Explanation of Key Sections:}
+\begin{itemize}
+\item \textbf{Initialization:} Loads configurations and prepares cloud services.
+\item \textbf{Task Publishing:} Sends crawl tasks to worker nodes for execution.
+\item \textbf{Job Processing:} Retrieves seed URLs and organizes the crawl workflow.
+\item \textbf {Health Monitoring:} Ensures system reliability with periodic updates.
+\item \textbf{Execution Flow:} Manages incoming jobs and distributes them efficiently.
+\end{itemize}
+\section{Application Backend Implementation \textbf{(main.py})}
+This section of the document describes the implementation of the main application backend for a distributed web crawling system. 
+\subsection{The backend:}
+\begin{itemize}
+\item Provides a Flask-based web interface.
+\item Manages crawl jobs and publishes them to Pub/Sub.
+\item Tracks system health, progress, and task execution.
+\item Integrates with Google Cloud Storage and Elasticsearch for data management.
+\end{itemize}
+\subsection{Application Initialization}
+The Flask application is initialized, loading environment variables and setting up clients for Pub/Sub, cloud storage, and Elasticsearch.
+\begin{lstlisting}[language=Python]
+import os
+import json
+import uuid
+import threading
+import time
+from datetime import datetime
+from flask import Flask, request, jsonify, render_template, flash
+from google.cloud import pubsub_v1, storage
+from dotenv import load_dotenv
+from elasticsearch import Elasticsearch
+
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "super-secret")
+\end{lstlisting}
+
+\subsection{Configuration and Cloud Service Clients}
+The application loads configuration parameters and initializes connections to cloud services.
+\begin{lstlisting}[language=Python]
+PROJECT_ID = os.environ["GCP_PROJECT_ID"]
+GCS_BUCKET_NAME = os.environ["GCS_BUCKET_NAME"]
+PUBSUB_TOPIC_ID = os.environ["NEW_CRAWL_JOB_TOPIC_ID"]
+METRICS_SUBSCRIPTION_ID = os.environ["METRICS_SUBSCRIPTION_ID"]
+PROGRESS_SUBSCRIPTION_ID = os.environ["PROGRESS_SUBSCRIPTION_ID"]
+
+storage_client = storage.Client()
+publisher = pubsub_v1.PublisherClient()
+topic_path = publisher.topic_path(PROJECT_ID, PUBSUB_TOPIC_ID)
+subscriber = pubsub_v1.SubscriberClient()
+\end{lstlisting}
+\newpage
+\subsection{Elasticsearch Integration}
+Elasticsearch is used to store indexed web data.
+\begin{lstlisting}[language=Python]
+ES_HOST = os.environ.get("ES_HOST")
+ES_PORT = os.environ.get("ES_PORT")
+ES_USERNAME = os.environ.get("ES_USERNAME")
+ES_PASSWORD = os.environ.get("ES_PASSWORD")
+ES_INDEX_NAME = os.environ.get("ES_INDEX_NAME")
+
+try:
+es_url = f"https://{ES_USERNAME}:{ES_PASSWORD}@{ES_HOST}"
+es_client = Elasticsearch(es_url, verify_certs=True)
+
+if not es_client.ping():
+    print("Warning: Elasticsearch connection failed")
+else:
+    print(f"Connected to Elasticsearch at {ES_HOST}:{ES_PORT}")
+except Exception as e:
+print(f"Failed to initialize Elasticsearch client: {e}")
+es_client = None
+\end{lstlisting}
+
+\subsection{Application State Management}
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{progress_monitoring_dashboard.png}
+    \caption{Task Progress Monitoring Dashboard}
+    \label{fig:progress-dashboard}
+\end{figure}
+
+A dictionary is used to track progress, health status, and completed tasks.
+\begin{lstlisting}[language=Python]
+app_state = {
+"tasks": {},
+"summary": {
+    "urls_crawled": 0,
+    "urls_indexed": 0,
+    "active_tasks": 0,
+    "completed_tasks": 0,
+    "failed_tasks": 0
+},
+"health": {
+    "master": {"status": "unknown", "last_check": None},
+    "crawler": {"status": "unknown", "last_check": None},
+    "indexer": {"status": "unknown", "last_check": None}
+}
+}
+\end{lstlisting}
+\newpage
+\subsection{Handling Crawl Requests}
+Users can submit crawl jobs through the Flask web interface.
+\begin{lstlisting}[language=Python]
+@app.route("/", methods=["GET", "POST"])
+def home():
+if request.method == "POST":
+    seed_urls = request.form.getlist("seed_urls[]")
+    depth = request.form.get("depth_limit", "1")
+    domain = request.form.get("domain_restriction", "").strip() or None
+
+    if not seed_urls:
+        flash("Please provide at least one valid seed URL.", "error")
+        return render_template("index.html", app_state=app_state)
+
+    task_id = str(uuid.uuid4())
+    timestamp = datetime.utcnow().isoformat()
+
+    job_data = {
+        "task_id": task_id,
+        "seed_urls": seed_urls,
+        "depth": int(depth),
+        "domain_restriction": domain,
+        "timestamp": timestamp
+    }
+
+    gcs_blob_path = f"crawl_tasks/{task_id}.json"
+    bucket = storage_client.bucket(GCS_BUCKET_NAME)
+    blob = bucket.blob(gcs_blob_path)
+    blob.upload_from_string(json.dumps(job_data), content_type="application/json")
+
+    pubsub_msg = {
+        "task_id": task_id,
+        "gcs_path": f"gs://{GCS_BUCKET_NAME}/{gcs_blob_path}",
+        "event": "task_submitted",
+        "timestamp": timestamp
+    }
+    publisher.publish(topic_path, json.dumps(pubsub_msg).encode("utf-8"))
+
+    app_state["tasks"][task_id] = {
+        "task_id": task_id,
+        "status": "submitted",
+        "start_time": timestamp
+    }
+
+    flash(f"Crawl job submitted. Task ID: {task_id}", "success")
+    return render_template("index.html", app_state=app_state)
+
+return render_template("index.html", app_state=app_state)
+\end{lstlisting}
+
+\subsection{Search API for Indexed URLs}
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{search_interface.png}
+    \caption{Web Crawler Search Interface}
+    \label{fig:search-interface}
+\end{figure}
+
+Users can query indexed content via a Flask endpoint.
+\begin{lstlisting}[language=Python]
+@app.route("/search/index", methods=["GET"])
+def search_index():
+query = request.args.get("q", "")
+if not query:
+    return jsonify({"error": "No search query provided"})
+
+try:
+    search_body = {
+        "query": {
+            "multi_match": {"query": query, "fields": ["content", "url"]}
+        },
+        "highlight": {"fields": {"content": {}}},
+        "size": 10
+    }
+    response = es_client.search(index=ES_INDEX_NAME, body=search_body)
+
+    results = []
+    for hit in response["hits"]["hits"]:
+        source = hit["_source"]
+        snippet = "...".join(hit.get("highlight", {}).get("content", ["No preview available"]))
+        results.append({"url": source["url"], "title": source["url"].split("/")[-1], "snippet": snippet})
+    
+    return jsonify({"results": results})
+except Exception as e:
+    return jsonify({"error": str(e)})
+\end{lstlisting}
+
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{search_results.png}
+    \caption{Example Search Results from Elasticsearch}
+    \label{fig:search-results}
+\end{figure}
+\newpage
+\subsection{Health Check and Background Tasks}
+Background threads monitor system health and progress.
+\begin{lstlisting}[language=Python]
+def listen_health_status():
+subscriber = pubsub_v1.SubscriberClient()
+sub_path = subscriber.subscription_path(PROJECT_ID, "health-metrics-sub")
+
+def callback(msg):
+    data = json.loads(msg.data.decode("utf-8"))
+    node_type = data.get("node_type", "unknown")
+    status = data.get("status", "unknown")
+    timestamp = data.get("timestamp")
+    if node_type in app_state["health"]:
+        app_state["health"][node_type] = {"status": status, "last_check": timestamp}
+    msg.ack()
+
+subscriber.subscribe(sub_path, callback=callback)
+\end{lstlisting}
+
+\subsection{Application Execution}
+The Flask app starts with background listeners for health monitoring and progress tracking.
+\begin{lstlisting}[language=Python]
+if __name__ == "__main__":
+threading.Thread(target=listen_health_status, daemon=True).start()
+app.run(debug=False, host='0.0.0.0', port=5000)
+\end{lstlisting}
+
+\subsection{Conclusion}
+This application backend efficiently manages crawl jobs, integrates with cloud services, and provides search capabilities for indexed content.
+\textbf{Explanation of Key Sections:}
+\begin{itemize}
+\item \textbf{Initialization:} Loads configurations and initializes Flask.
+\item \textbf{Handling Crawl Jobs:} Accepts user input, uploads to storage, and publishes jobs to Pub/Sub.
+\item \textbf{Progress Tracking:} Listens for updates on crawl tasks and indexes results.
+\item \textbf{Search API:} Allows querying indexed content stored in Elasticsearch.
+\item \textbf{Health Monitoring:} Ensures operational reliability through background listeners.
+\end{itemize}
+\newpage
+
+\section{Deployment Guide}
+The Deployment Guide covers the complete process of deploying the Distributed Web Crawling and Indexing System on Google Cloud Platform (GCP).
+
+
+\subsection{Backup and Recovery}
+The system implements backup and recovery through:
+
+\begin{itemize}
+\item GCS bucket versioning for data persistence
+\item Elasticsearch snapshots for index backup
+\item Automated health checks and alerts
+\end{itemize}
+
+\subsection{Maintenance Tasks}
+Regular maintenance tasks include:
+
+\begin{itemize}
+\item Monitoring system health through Cloud Monitoring
+\item Reviewing and updating firewall rules
+\item Rotating service account keys
+\item Updating node configurations
+\item Managing GCS bucket lifecycle
 \end{itemize}
 
 \chapter{Deployment and Demonstration}
 
-\section{Deployment Scripts}
-Automated deployment scripts were created for:
+\section{Deployment Architecture}
+The system is deployed on Google Cloud Platform (GCP).  The deployment architecture consists of:
+
+\subsection{Compute Resources}
 \begin{itemize}
-    \item GCP resource provisioning
-    \item Container building and deployment
-    \item Configuration management
-    \item System initialization
-    \item Scaling configuration
+\item \textbf{Master Node}: Single instance managing the crawling workflow
+\item \textbf{Crawler Nodes}: Multiple instances for parallel web crawling
+\item \textbf{Indexer Nodes}: Multiple instances for parallel content indexing
+\end{itemize}
+
+\subsection{Network Architecture}
+\begin{itemize}
+\item Dedicated VPC network with manual subnetwork creation
+\item Regional routing mode for better control
+\item Firewall rules for secure communication
+\item Internal and external IP addressing
+\end{itemize}
+
+\section{Deployment Process}
+
+\subsection{Prerequisites}
+\begin{itemize}
+\item Google Cloud Platform account with billing enabled
+\item Google Cloud SDK installed
+\item Access to required GCP APIs
+\end{itemize}
+
+
+\section{Node Bootstrap Process}
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{cloud_console_vm_instances.png}
+    \caption{VM Instances in GCP Console}
+    \label{fig:vm-instances}
+\end{figure}
+
+\subsection{Master Node Setup}
+The master node bootstrap script performs the following tasks:
+\begin{itemize}
+\item Installs required packages (Python, Git, etc.)
+\item Sets up application directory structure
+\item Configures Python virtual environment
+\item Sets up systemd service for automatic startup
+\item Configures environment variables
+\end{itemize}
+
+\subsection{Crawler Node Setup}
+Each crawler node is initialized with:
+\begin{itemize}
+\item Basic system packages
+\item Python environment setup
+\item Application code deployment
+\item Service configuration
+\item Health monitoring setup
+\end{itemize}
+
+\subsection{Indexer Node Setup}
+Indexer nodes are configured with:
+\begin{itemize}
+\item Persistent disk setup for index storage
+\item Elasticsearch client configuration
+\item Application deployment
+\item Service initialization
+\item Health monitoring
+\end{itemize}
+
+\section{Monitoring and Maintenance}
+
+\subsection{Health Checks}
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{cloud_console_monitoring.png}
+    \caption{GCP Cloud Monitoring Dashboard}
+    \label{fig:monitoring-console}
+\end{figure}
+
+The system implements comprehensive health monitoring:
+\begin{itemize}
+\item Uptime checks for all components
+\item CPU utilization monitoring
+\item Memory usage tracking
+\item Service status verification
+\end{itemize}
+
+\subsection{Alerting}
+Alert policies are configured for:
+\begin{itemize}
+\item High CPU utilization (>80\%)
+\item Service unavailability
+\item Disk space warnings
+\item Network connectivity issues
 \end{itemize}
 
 \section{Demonstration Plan}
-A comprehensive demonstration plan was developed:
+
+\subsection{System Overview}
 \begin{itemize}
-    \item System overview presentation
-    \item Live demonstration of crawling capabilities
-    \item Search functionality showcase
-    \item Fault tolerance demonstration
-    \item Scalability demonstration
-    \item Q\&A session preparation
+\item Architecture walkthrough
+\item Component interaction demonstration
+\item Scaling capabilities showcase
 \end{itemize}
 
-\section{Deployment Checklist}
-A detailed checklist ensures successful deployment:
+\subsection{Functional Demonstration}
+\begin{enumerate}
+\item \textbf{Initial Setup}:
 \begin{itemize}
-    \item Verify GCP resources
-    \item Check environment configuration
-    \item Validate component connectivity
-    \item Test system functionality
-    \item Monitor system performance
-    \item Verify fault tolerance
-    \item Prepare rollback procedures
+    \item Demonstrate deployment process
+    \item Verify component health
 \end{itemize}
+
+\item \textbf{Crawling Process}:
+\begin{itemize}
+    \item Submit new crawl job
+    \item Monitor crawler node activity
+    \item View progress metrics
+\end{itemize}
+
+\item \textbf{Indexing Process}:
+\begin{itemize}
+    \item Show indexer node operation
+    \item Demonstrate content processing
+    \item Verify search functionality
+\end{itemize}
+
+\item \textbf{System Management}:
+\begin{itemize}
+    \item Scale node count
+    \item Monitor performance
+    \item Handle failures
+\end{itemize}
+\end{enumerate}
+
+\subsection{Performance Demonstration}
+\begin{itemize}
+\item Crawl speed metrics
+\item Indexing throughput
+\item Search response times
+\item Resource utilization
+\end{itemize}
+
+\section{Deployment Verification}
+
+\subsection{Health Checks}
+\begin{itemize}
+\item Verify all services are running
+\item Check component connectivity
+\item Validate monitoring setup
+\item Test alert mechanisms
+\end{itemize}
+
+\subsection{Functionality Tests}
+\begin{itemize}
+\item Test crawl job submission
+\item Verify content indexing
+\item Validate search results
+\item Check error handling
+\end{itemize}
+
+\subsection{Performance Validation}
+\begin{itemize}
+\item Measure crawl rates
+\item Test indexing speed
+\item Verify search performance
+\item Monitor resource usage
+\end{itemize}
+
+\section{Troubleshooting Guide}
+
+\subsection{Common Issues}
+\begin{itemize}
+\item Service startup failures
+\item Network connectivity problems
+\item Resource constraints
+\item Configuration errors
+\end{itemize}
+
+\subsection{Resolution Steps}
+\begin{enumerate}
+\item Check service logs
+\item Verify network connectivity
+\item Review resource utilization
+\item Validate configuration
+\item Test component isolation
+\end{enumerate}
+
+
+\section{User Manual}
+This section provides instructions to run and manage the distributed web crawling and indexing system using Google Cloud.
+\subsection{Running the User Interface}
+To launch the user interface, execute the following command:
+\begin{lstlisting}[language=Python]
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\Users\moham\Documents\uni\semesters\Spring 2025\distributed\project\sunlit-pixel-456910-j0-0f2843e49d73.json"
+python src/UI/main.py
+\end{lstlisting}
+\subsection{Updating Containers in Artifact Registry}
+To update the system containers, run the following commands:
+\begin{lstlisting}[language=Python]
+gcloud builds submit src/indexer --tag me-west1-docker.pkg.dev/sunlit-pixel-456910-j0/master-node/indexer-node:latest
+gcloud builds submit src/crawler --tag me-west1-docker.pkg.dev/sunlit-pixel-456910-j0/master-node/crawler-node:latest
+gcloud builds submit src/master --tag me-west1-docker.pkg.dev/sunlit-pixel-456910-j0/master-node/master-node:latest
+\end{lstlisting}
+\newpage
+\subsection{Creating Instance Templates}
+Define common variables:
+\begin{lstlisting}[language=Python]
+REGION="us-central1"
+MACHINE_TYPE="e2-medium"
+SERVICE_ACCOUNT="ui-client@sunlit-pixel-456910-j0.iam.gserviceaccount.com"
+SCOPES="https://www.googleapis.com/auth/cloud-platform"
+\end{lstlisting}
+Delete existing templates if necessary:
+\begin{lstlisting}[language=Python]
+gcloud compute instance-templates delete indexer-template --quiet || true
+gcloud compute instance-templates delete crawler-template --quiet || true
+gcloud compute instance-templates delete master-template --quiet || true
+\end{lstlisting}
+Create instance templates for indexer, crawler, and master nodes:
+\begin{lstlisting}[language=Python]
+gcloud compute instance-templates create-with-container indexer-template \
+--region=$REGION \
+--machine-type=$MACHINE_TYPE \
+--service-account=$SERVICE_ACCOUNT \
+--scopes=$SCOPES \
+--container-image=me-west1-docker.pkg.dev/sunlit-pixel-456910-j0/master-node/indexer-node:latest    
+\end{lstlisting}
+Repeat for crawler and master templates.
+\subsection{Creating Managed Instance Groups (MIG)}
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{cloud_console_mig.png}
+    \caption{Managed Instance Groups in GCP Console}
+    \label{fig:mig-console}
+\end{figure}
+
+Set common variables:
+\begin{lstlisting}[language=Python]
+REGION="us-central1"
+ZONE="us-central1-a"
+HEALTH_CHECK="crawler"    
+\end{lstlisting}
+Create indexer, crawler, and master MIGs:
+\begin{lstlisting}[language=Python]
+gcloud compute instance-groups managed create indexer-mig \
+--base-instance-name=indexer-instance \
+--template=indexer-template \
+--size=1 \
+--zone=$ZONE \
+--health-check=$HEALTH_CHECK \
+--initial-delay=300
+
+# Set Autoscaling for Indexer MIG
+gcloud compute instance-groups managed set-autoscaling indexer-mig \
+--zone=$ZONE \
+--min-num-replicas=1 \
+--max-num-replicas=8 \
+--target-cpu-utilization=0.7 \
+--cool-down-period=60
+
+# Create Crawler MIG
+gcloud compute instance-groups managed create crawler-mig \
+--base-instance-name=crawler-instance \
+--template=crawler-template \
+--size=2 \
+--zone=$ZONE \
+--health-check=$HEALTH_CHECK \
+--initial-delay=300
+
+# Set Autoscaling for Crawler MIG
+gcloud compute instance-groups managed set-autoscaling crawler-mig \
+--zone=$ZONE \
+--min-num-replicas=2 \
+--max-num-replicas=8 \
+--target-cpu-utilization=0.7 \
+--cool-down-period=60
+
+# Create Master MIG
+gcloud compute instance-groups managed create master-mig \
+--base-instance-name=master-instance \
+--template=master-template \
+--size=1 \
+--zone=$ZONE \
+--health-check=$HEALTH_CHECK \
+--initial-delay=300
+
+# Set Autoscaling for Master MIG
+gcloud compute instance-groups managed set-autoscaling master-mig \
+--zone=$ZONE \
+--min-num-replicas=1 \
+--max-num-replicas=8 \
+--target-cpu-utilization=0.7 \
+--cool-down-period=60
+
+\end{lstlisting}
+\newpage
+\subsection{Creating Cloud Storage and Pub/Sub Topics}
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{cloud_console_storage.png}
+    \caption{Cloud Storage Bucket in GCP Console}
+    \label{fig:storage-console}
+\end{figure}
+
+Create a storage bucket:
+\begin{lstlisting}[language=Python]
+gcloud storage buckets create webcrawlingproject --location=us --storage-class=STANDARD --uniform-bucket-level-access
+\end{lstlisting}
+\begin{figure}[htb!]
+    \centering
+    \includegraphics[width=0.9\linewidth]{cloud_console_pubsub.png}
+    \caption{Pub/Sub Topics in GCP Console}
+    \label{fig:pubsub-console}
+\end{figure}
+Create Pub/Sub topics:
+\begin{lstlisting}[language=Python]
+gcloud pubsub topics create Crawler-Indexer
+gcloud pubsub topics create health-metrics
+gcloud pubsub topics create Master-Crawler
+gcloud pubsub topics create progress
+gcloud pubsub topics create UI-Master
+\end{lstlisting}
+
+\subsection{Conclusion}
+This manual outlines essential commands to set up and manage the system. Ensure you have proper permissions before executing these commands.
+
+
+
+
 
 \chapter{Lessons Learned and Future Work}
 
-\section{Technical Challenges}
-Key technical challenges encountered:
+\section{Technical Challenges and Solutions}
+Throughout the development of the Distributed Web Crawling and Indexing System, several significant technical challenges were encountered and addressed:
+
+\subsection{Distributed State Management}
 \begin{itemize}
-    \item Distributed state management complexity
-    \item Balancing crawl politeness with performance
-    \item Handling diverse web content formats
-    \item Ensuring fault tolerance across distributed components
-    \item Managing cloud resource costs
+\item \textbf{Challenge}: Maintaining consistent state across distributed crawler and indexer nodes
+\item \textbf{Solution}: Implemented a combination of:
+    \begin{itemize}
+        \item Pub/Sub for message-based state synchronization
+        \item GCS for persistent state storage
+        \item Health check mechanisms for node status tracking
+    \end{itemize}
+\item \textbf{Impact}: Achieved reliable state management with minimal overhead
 \end{itemize}
 
-\section{Process Insights}
-Important process insights gained:
+\subsection{Performance Optimization}
 \begin{itemize}
-    \item Value of iterative development approach
-    \item Importance of comprehensive testing
-    \item Benefits of continuous integration
-    \item Need for detailed documentation
-    \item Significance of performance monitoring
+\item \textbf{Challenge}: Balancing crawl speed with politeness and resource usage
+\item \textbf{Solution}: Developed adaptive rate limiting:
+    \begin{itemize}
+        \item Dynamic delay adjustment based on server response
+        \item Connection pooling for efficient resource usage
+        \item Intelligent URL prioritization
+    \end{itemize}
+\item \textbf{Impact}: 40\% improvement in crawl efficiency while maintaining politeness
+\end{itemize}
+
+\subsection{Fault Tolerance}
+\begin{itemize}
+\item \textbf{Challenge}: Ensuring system resilience during component failures
+\item \textbf{Solution}: Implemented comprehensive fault tolerance:
+    \begin{itemize}
+        \item Automatic node recovery mechanisms
+        \item Message persistence and retry logic
+        \item Graceful degradation strategies
+    \end{itemize}
+\item \textbf{Impact}: System maintains 99.9\% uptime during component failures
+\end{itemize}
+
+\section{Architectural Insights}
+Key architectural lessons learned during system development:
+
+\subsection{Cloud Service Integration}
+\begin{itemize}
+\item \textbf{Discovery}: GCP service integration complexity
+\item \textbf{Solution}: 
+    \begin{itemize}
+        \item Standardized service client initialization
+        \item Comprehensive error handling
+        \item Resource cleanup procedures
+    \end{itemize}
+\item \textbf{Benefit}: More reliable and maintainable cloud integration
+\end{itemize}
+
+\subsection{Scalability Design}
+\begin{itemize}
+\item \textbf{Discovery}: Linear scaling limitations
+\item \textbf{Solution}: 
+    \begin{itemize}
+        \item Implemented horizontal scaling
+        \item Added load balancing
+        \item Optimized resource allocation
+    \end{itemize}
+\item \textbf{Benefit}: Improved system scalability and resource utilization
 \end{itemize}
 
 \section{Future Enhancements}
-Potential future enhancements:
+Planned improvements and new features for future development:
+
+\subsection{Advanced Crawling Capabilities}
 \begin{itemize}
-    \item Advanced content analysis using machine learning
-    \item Multi-language support
-    \item Enhanced duplicate detection
-    \item Improved multimedia content handling
-    \item Integration with other data sources
-    \item User-defined crawl patterns
-    \item Advanced search capabilities
+\item \textbf{Content Analysis}:
+    \begin{itemize}
+        \item Implement machine learning for content classification
+        \item Add sentiment analysis for text content
+        \item Develop entity recognition capabilities
+    \end{itemize}
+\item \textbf{Multimedia Processing}:
+    \begin{itemize}
+        \item Add image content analysis
+        \item Implement video content extraction
+        \item Develop audio content processing
+    \end{itemize}
 \end{itemize}
+
+\subsection{Enhanced Search Functionality}
+\begin{itemize}
+\item \textbf{Search Improvements}:
+    \begin{itemize}
+        \item Implement semantic search capabilities
+        \item Add faceted search functionality
+        \item Develop advanced filtering options
+    \end{itemize}
+\item \textbf{User Experience}:
+    \begin{itemize}
+        \item Add personalized search results
+        \item Implement search suggestions
+        \item Develop search analytics
+    \end{itemize}
+\end{itemize}
+
+\subsection{System Scalability}
+\begin{itemize}
+\item \textbf{Infrastructure}:
+    \begin{itemize}
+        \item Implement auto-scaling based on load
+        \item Add multi-region deployment support
+        \item Develop advanced resource optimization
+    \end{itemize}
+\item \textbf{Performance}:
+    \begin{itemize}
+        \item Optimize memory usage
+        \item Improve network efficiency
+        \item Enhance caching mechanisms
+    \end{itemize}
+\end{itemize}
+
+\subsection{Integration Capabilities}
+\begin{itemize}
+\item \textbf{API Enhancements}:
+    \begin{itemize}
+        \item Develop RESTful API for all operations
+        \item Add GraphQL support
+        \item Implement webhook notifications
+    \end{itemize}
+\item \textbf{External Services}:
+    \begin{itemize}
+        \item Add support for additional cloud providers
+        \item Implement third-party service integration
+        \item Develop plugin architecture
+    \end{itemize}
+\end{itemize}
+
+
 
 \chapter{Conclusion}
 
@@ -834,12 +2130,22 @@ In conclusion, the Distributed Web Crawling and Indexing System represents a suc
 
 \section{Test Domains}
 \begin{itemize}
-    \item example.com
-    \item wikipedia.org
-    \item github.com
-    \item medium.com
-    \item nytimes.com
+\item example.com
+\item wikipedia.org
+\item github.com
+\item medium.com
+\item nytimes.com
+\item reuters.com
+\item bbc.com
+\item cnn.com
+\item forbes.com
+\item imdb.com
+\item quora.com
+\item stackoverflow.com
 \end{itemize}
+
+
+
 
 \section{Test Scenarios}
 Detailed test scenarios and results
@@ -852,7 +2158,41 @@ Comprehensive performance testing data
 \section{Scalability Graphs}
 Additional scalability testing graphs
 
-\chapter{Deployment Scripts}
+
+\begin{thebibliography}{9}
+
+\bibitem{cloud_crawler}
+Cloud-based Web Crawler Architecture, Cloud Lab UCM. 
+\url{https://cloud-based_web_crawler_architecture_cloud_lab_ucm.pdf}
+
+\bibitem{high_availability}
+Google Cloud Architecture Framework: Building Highly Available Systems. 
+\url{https://cloud.google.com/architecture/framework/reliability/build-highly-available-systems}
+
+\bibitem{robots_txt}
+Robots.txt Standard Documentation. 
+\url{https://www.robotstxt.org/}
+
+\bibitem{beautiful_soup}
+Beautiful Soup: A Python Library for Parsing HTML and XML. 
+\url{https://www.crummy.com/software/BeautifulSoup/}
+
+\bibitem{gcp_home}
+Google Cloud Platform (GCP) Homepage. 
+\url{https://cloud.google.com/?hl=en}
 
 
+\bibitem{gcp_pubsub}
+Google Cloud Pub/Sub Documentation. 
+\url{https://cloud.google.com/pubsub?hl=en}
+
+\bibitem{gcp_storage}
+Google Cloud Storage Documentation. 
+\url{https://cloud.google.com/storage?hl=en}
+
+\bibitem{gcp_appengine}
+Google Cloud App Engine Documentation. 
+\url{https://cloud.google.com/appengine?hl=en}
+
+\end{thebibliography}   
 \end{document}

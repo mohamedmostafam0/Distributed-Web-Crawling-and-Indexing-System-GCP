@@ -165,32 +165,43 @@ class CrawlerNode:
         if not new_urls:
             return
 
-        for url in new_urls:
-            # Clean the URL first to ensure it doesn't contain newlines or carriage returns
-            clean_url = url.strip().replace('\r', '').replace('\n', '')
-            
-            # Create a message for each URL
-            message_data = {
-                "task_id": str(uuid.uuid4()),
-                "url": clean_url,
-                "depth": depth,
-                "domain_restriction": domain_restriction,
-                "source_task_id": source_task_id,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-            gcs_blob_path = f"new_tasks/{message_data['task_id']}_{datetime.utcnow().strftime('%Y%m%dT%H%M%S')}.json"
-            bucket = self.storage_client.bucket(self.GCS_BUCKET_NAME)
-            blob = bucket.blob(gcs_blob_path)
-            blob.upload_from_string(json.dumps(message_data), content_type="application/json")
-            logging.info(f"Saved new URL batch to gs://{self.GCS_BUCKET_NAME}/{gcs_blob_path}")
+        # Clean all URLs to ensure they don't contain newlines or carriage returns
+        clean_urls = [url.strip().replace('\r', '').replace('\n', '') for url in new_urls]
+        
+        # Use the original source_task_id instead of generating a new one
+        # If source_task_id is None, generate a new one
+        task_id = source_task_id if source_task_id else str(uuid.uuid4())
+        
+        # Create a single batch message for all URLs
+        message_data = {
+            "task_id": task_id,  # Use the original task ID
+            "urls": clean_urls,  # Send all URLs in a single batch
+            "depth": depth,
+            "domain_restriction": domain_restriction,
+            "source_task_id": source_task_id,  # Keep this for reference
+            "timestamp": datetime.utcnow().isoformat(),
+            "url_count": len(clean_urls),
+            "is_continuation": True  # Flag to indicate this is a continuation of an existing task
+        }
+        
+        # Save the batch to GCS
+        timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%S')
+        gcs_blob_path = f"new_tasks/{task_id}_{timestamp}.json"
+        bucket = self.storage_client.bucket(self.GCS_BUCKET_NAME)
+        blob = bucket.blob(gcs_blob_path)
+        blob.upload_from_string(json.dumps(message_data), content_type="application/json")
+        logging.info(f"Saved batch of {len(clean_urls)} new URLs to gs://{self.GCS_BUCKET_NAME}/{gcs_blob_path}")
 
-            pubsub_msg = {
-                "task_id": message_data["task_id"],
-                "gcs_path": f"gs://{self.GCS_BUCKET_NAME}/{gcs_blob_path}"
-            }
+        # Publish the batch to the master
+        pubsub_msg = {
+            "task_id": task_id,  # Use the original task ID
+            "gcs_path": f"gs://{self.GCS_BUCKET_NAME}/{gcs_blob_path}",
+            "url_count": len(clean_urls),
+            "is_continuation": True  # Flag to indicate this is a continuation of an existing task
+        }
 
-            self.publish_message(self.new_url_topic_path, pubsub_msg)
-            logging.info(f"Published new crawl job task_id={message_data['task_id']} to master")
+        self.publish_message(self.new_url_topic_path, pubsub_msg)
+        logging.info(f"Published batch of {len(clean_urls)} new URLs with original task_id={task_id} to master")
 
 
     def publish_crawler_metrics(self, event_type, task_id, url=None, extra=None):
@@ -220,12 +231,17 @@ class CrawlerNode:
             depth_limit = task_data.get("depth_limit", self.MAX_DEPTH)
             domain_restriction = task_data.get("domain_restriction")
             source_job_id = task_data.get("source_job_id")
+            is_continuation = task_data.get("is_continuation", False)
 
             # Clean the URL - remove any newlines or carriage returns that might have been added
             if url:
                 url = url.strip().replace('\r', '').replace('\n', '')
 
-            print(f"🔍 Crawler received: {url} (depth={depth}/{depth_limit})")
+            # Log additional information for continuations
+            if is_continuation:
+                logging.info(f"🔄 Processing continuation of task {task_id} for URL: {url} (depth={depth}/{depth_limit})")
+            else:
+                logging.info(f"🔍 Crawler received: {url} (depth={depth}/{depth_limit})")
 
             if not url or not url.startswith('http'):
                 logging.warning(f"Received invalid task data (missing/invalid URL): {data_str}")
@@ -318,8 +334,13 @@ class CrawlerNode:
                 self.publish_crawler_metrics("url_crawled", task_id=task_id, url=url)
 
                 # --- Extract and Publish New URLs (if depth allows) ---
-
-                if depth < depth_limit:
+                
+                # If depth_limit is None, use the MAX_DEPTH from config
+                if depth_limit is None:
+                    depth_limit = self.MAX_DEPTH
+                    
+                # Only proceed if we haven't reached the depth limit
+                if depth_limit is None or depth < depth_limit:
                     new_urls_found = 0
                     new_urls = []
 

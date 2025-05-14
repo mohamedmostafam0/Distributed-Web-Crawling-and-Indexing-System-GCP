@@ -48,6 +48,16 @@ except Exception as e:
     es_client = None
 
 # --- Application State ---
+# Record UI startup time to filter out old messages
+UI_STARTUP_TIME = datetime.utcnow().isoformat()
+print(f"UI started at {UI_STARTUP_TIME}, ignoring older messages")
+
+# Set a maximum number of tasks to track to prevent UI overload
+MAX_ACTIVE_TASKS = 20
+
+# Set a timeout for stalled tasks in seconds (10 minutes)
+TASK_STALL_TIMEOUT = 600
+
 app_state = {
     "tasks": {},   # Task progress information
     "summary": {   # System-wide summary
@@ -61,7 +71,10 @@ app_state = {
         "master": {"status": "unknown", "last_check": None},
         "crawler": {"status": "unknown", "last_check": None},
         "indexer": {"status": "unknown", "last_check": None}
-    }
+    },
+    "startup_time": UI_STARTUP_TIME,  # Store startup time in app state
+    "known_task_ids": set(),  # Track task IDs we've seen since startup
+    "seed_url_to_task": {}  # Map seed URLs to task IDs to prevent duplicates
 }
 
 # Helper function to check if a node is offline based on last health check
@@ -125,6 +138,12 @@ def listen_health_status():
             status = data.get("status", "unknown")
             timestamp = data.get("timestamp")
             
+            # Skip messages with timestamps before UI startup
+            if timestamp and timestamp < UI_STARTUP_TIME:
+                print(f"Skipping old health message from {timestamp} (before UI start at {UI_STARTUP_TIME})")
+                msg.ack()
+                return
+            
             if node_type in app_state["health"]:
                 app_state["health"][node_type] = {
                     "status": status,
@@ -151,23 +170,42 @@ def listen_to_progress():
             task_id = data.get("task_id") or data.get("job_id")
             event = data.get("event")
             timestamp = data.get("timestamp") or datetime.utcnow().isoformat()
-            print(f"Processing progress event: {event} for task {task_id}")
             
-            # Special handling for master node job_received events
-            if not task_id and data.get("node_type") == "master" and event == "job_received":
-                # Use the job_id as the task_id for these events
-                task_id = data.get("job_id")
-            
+            # Skip messages without a task_id
             if not task_id:
                 print(f"Received progress message without task_id: {data}")
                 message.ack()
                 return
+            
+            # Special handling for master node job_received events
+            if data.get("node_type") == "master" and event == "job_received":
+                # Use the job_id as the task_id for these events
+                task_id = data.get("job_id")
+                
+                # Check for duplicate tasks based on seed URLs
+                seed_urls = data.get("seed_urls", [])
+                if seed_urls and event == "job_received":
+                    # Convert list to a sorted tuple for hashability
+                    seed_urls_key = tuple(sorted(seed_urls))
+                    
+                    # If we already have a task with these seed URLs, use that task ID instead
+                    if seed_urls_key in app_state["seed_url_to_task"]:
+                        existing_task_id = app_state["seed_url_to_task"][seed_urls_key]
+                        if existing_task_id in app_state["tasks"]:
+                            print(f"Detected duplicate task with same seed URLs. Using existing task {existing_task_id} instead of {task_id}")
+                            task_id = existing_task_id
+                    else:
+                        # Register this new task with its seed URLs
+                        app_state["seed_url_to_task"][seed_urls_key] = task_id
+                        print(f"Registered new task {task_id} with seed URLs: {seed_urls}")
                 
             # Initialize task if it doesn't exist
             if task_id not in app_state["tasks"]:
+                # If this is not a job_received or task_started event, and the task doesn't exist,
+                # add it to our known tasks but mark it as a new task
                 app_state["tasks"][task_id] = {
                     "task_id": task_id,
-                    "status": "in_progress",
+                    "status": "submitted" if event == "job_received" else "in_progress",
                     "crawled_urls": 0,
                     "indexed_urls": 0,
                     "crawled_urls_list": [],  # List of crawled URLs for detail view
@@ -180,6 +218,14 @@ def listen_to_progress():
                     "seed_urls": data.get("seed_urls", []),
                     "domain_restriction": data.get("domain_restriction")
                 }
+                app_state["known_task_ids"].add(task_id)
+                print(f"Created new task entry for {task_id}")
+                
+                # Register seed URLs for this task to prevent duplicates
+                seed_urls = data.get("seed_urls", [])
+                if seed_urls:
+                    seed_urls_key = tuple(sorted(seed_urls))
+                    app_state["seed_url_to_task"][seed_urls_key] = task_id
             
             # Update task with the new information
             task = app_state["tasks"][task_id]
@@ -199,7 +245,30 @@ def listen_to_progress():
                 task["total_depth"] = data.get("depth", task["total_depth"])
                 task["seed_urls"] = data.get("seed_urls", task["seed_urls"])
                 task["domain_restriction"] = data.get("domain_restriction", task["domain_restriction"])
-                update_summary_stats()
+                task["continuations"] = 0  # Initialize counter for task continuations
+                
+                # Register seed URLs for this task to prevent duplicates
+                seed_urls = data.get("seed_urls", [])
+                if seed_urls:
+                    seed_urls_key = tuple(sorted(seed_urls))
+                    app_state["seed_url_to_task"][seed_urls_key] = task_id
+                
+            elif event == "task_continuation":
+                # This is a continuation of an existing task, update the task with new URLs count
+                url_count = data.get("url_count", 0)
+                # Initialize continuations counter if it doesn't exist
+                if "continuations" not in task:
+                    task["continuations"] = 0
+                # Increment the continuations counter
+                task["continuations"] += 1
+                # Add the continuation to the task details
+                if "continuation_details" not in task:
+                    task["continuation_details"] = []
+                task["continuation_details"].append({
+                    "timestamp": timestamp,
+                    "url_count": url_count
+                })
+                print(f"Received continuation #{task['continuations']} of task {task_id} with {url_count} new URLs")
                 
             elif event == "url_crawled" or event == "crawled":
                 # Support both event names for backward compatibility
@@ -213,37 +282,38 @@ def listen_to_progress():
                 if depth is not None and depth > task["current_depth"]:
                     task["current_depth"] = depth
                 print(f"Updated crawled count for task {task_id}: {task['crawled_urls']} URLs")
-                update_summary_stats()
+                
+                # Update task status to in_progress if it was submitted
+                if task["status"] == "submitted":
+                    task["status"] = "in_progress"
                 
             elif event == "url_indexed" or event == "indexed":
                 # Support both event names for backward compatibility
                 url = data.get("url")
-                # Allow indexed count to increment even if crawled count is 0 (for now)
-                # This is a temporary fix to ensure progress is shown
                 task["indexed_urls"] += 1
                 if url and url not in task["indexed_urls_list"]:
                     task["indexed_urls_list"].append(url)
                 print(f"Updated indexed count for task {task_id}: {task['indexed_urls']} URLs")
-                update_summary_stats()
+                
+                # Update task status to in_progress if it was submitted
+                if task["status"] == "submitted":
+                    task["status"] = "in_progress"
                 
             elif event == "depth_complete":
                 depth = data.get("depth")
                 if depth is not None:
                     task["depth_complete"] = depth
-                update_summary_stats()
                 
             elif event == "task_completed":
                 task["status"] = "completed"
                 task["end_time"] = timestamp
                 task["completion_details"] = data
-                update_summary_stats()
                 
             elif event == "task_failed":
                 task["status"] = "failed"
                 task["end_time"] = timestamp
                 task["error"] = data.get("error", "Unknown error")
                 task["error_details"] = data
-                update_summary_stats()
             
             # Clean up lists if they're getting too large
             # Keep only the first 10 and the last 40 items to stay under memory limits
@@ -251,7 +321,7 @@ def listen_to_progress():
                 if len(task[list_name]) > 100:
                     task[list_name] = task[list_name][:10] + task[list_name][-40:]
             
-            # Update overall summary statistics
+            # Update overall summary statistics after each event
             update_summary_stats()
                 
         except Exception as e:
@@ -282,11 +352,10 @@ def periodic_health_check():
     """Periodically check node health even without UI interaction"""
     while True:
         try:
-            # Check all nodes for health status
+            # Check each component and update status if it's offline
             for component, info in app_state["health"].items():
                 if info["last_check"] and is_node_offline(info["last_check"]):
                     app_state["health"][component]["status"] = "offline"
-                    print(f"Node {component} marked as offline: no health check in over 2 minutes")
             
             # Sleep for 30 seconds before next check
             time.sleep(30)
@@ -299,44 +368,53 @@ def check_stalled_tasks():
     while True:
         try:
             current_time = datetime.utcnow()
-            active_tasks = [task_id for task_id, task in app_state["tasks"].items() if task["status"] == "in_progress"]
+            active_tasks = [task_id for task_id, task in app_state["tasks"].items() 
+                          if task["status"] in ["in_progress", "submitted"]]
+            
             print(f"Currently tracking {len(active_tasks)} active tasks")
             
-            # First, handle tasks with progress
-            for task_id, task in app_state["tasks"].items():
-                if task["status"] == "in_progress":
-                    try:
-                        last_update = datetime.fromisoformat(task["last_update"])
-                        time_diff = (current_time - last_update).total_seconds()
-                        
-                        # If task has progress and no updates for 1 minute, mark as completed
-                        if time_diff > 60 and (task["crawled_urls"] > 0 or task["indexed_urls"] > 0):
-                            print(f"Auto-completing task {task_id} with progress (no updates for {time_diff:.0f} seconds)")
-                            task["status"] = "completed"
-                            task["end_time"] = current_time.isoformat()
-                            task["completion_details"] = {"auto_completed": True, "reason": "task_completed_with_progress"}
-                        # If no progress for 2 minutes, mark as failed
-                        elif time_diff > 120 and task["crawled_urls"] == 0 and task["indexed_urls"] == 0:
-                            print(f"Auto-failing task {task_id} with no progress after {time_diff:.0f} seconds")
-                            task["status"] = "failed"
-                            task["end_time"] = current_time.isoformat()
-                            task["error"] = "Task failed to make progress"
-                            task["error_details"] = {"auto_failed": True, "reason": "task_no_progress"}
-                    except Exception as e:
-                        print(f"Error checking task {task_id} for staleness: {e}")
+            for task_id, task in list(app_state["tasks"].items()):
+                # Skip tasks that are already completed or failed
+                if task["status"] in ["completed", "failed"]:
+                    continue
+                    
+                # Parse the last update time
+                try:
+                    last_update = datetime.fromisoformat(task["last_update"])
+                    # Check if the task has been inactive
+                    time_diff = (current_time - last_update).total_seconds()
+                    
+                    # Different timeouts based on task status
+                    if task["status"] == "submitted" and time_diff > 120:  # 2 minutes for submitted tasks
+                        print(f"Task {task_id} appears to be stalled in submitted state (no updates for {time_diff:.0f} seconds). Marking as failed.")
+                        task["status"] = "failed"
+                        task["end_time"] = current_time.isoformat()
+                        task["error"] = "Task appears to be stalled in submitted state (no updates for 2+ minutes)"
+                    elif task["status"] == "in_progress" and time_diff > TASK_STALL_TIMEOUT:  # 10 minutes for in-progress tasks
+                        print(f"Task {task_id} appears to be stalled (no updates for {time_diff:.0f} seconds). Marking as failed.")
+                        task["status"] = "failed"
+                        task["end_time"] = current_time.isoformat()
+                        task["error"] = f"Task appears to be stalled (no updates for {TASK_STALL_TIMEOUT//60}+ minutes)"
+                    # Add a warning flag for tasks that haven't updated in a while but aren't stalled yet
+                    elif task["status"] == "in_progress" and time_diff > 180:  # 3 minutes warning
+                        if "warning" not in task or task["warning"] != "slow_progress":
+                            task["warning"] = "slow_progress"
+                            print(f"Task {task_id} showing slow progress (no updates for {time_diff:.0f} seconds).")
+                except Exception as e:
+                    print(f"Error checking stalled status for task {task_id}: {e}")
             
-            # Limit the number of active tasks to 10 by completing older ones
-            if len(active_tasks) > 10:
+            # Limit the number of active tasks to MAX_ACTIVE_TASKS by completing older ones
+            if len(active_tasks) > MAX_ACTIVE_TASKS:
                 # Sort tasks by last_update (oldest first)
                 sorted_tasks = sorted(
                     [(task_id, app_state["tasks"][task_id]["last_update"]) for task_id in active_tasks],
                     key=lambda x: x[1]
                 )
                 
-                # Mark older tasks as completed to keep only 10 active
-                for task_id, _ in sorted_tasks[:-10]:  # Keep the 10 most recent tasks
+                # Mark older tasks as completed to keep only MAX_ACTIVE_TASKS active
+                for task_id, _ in sorted_tasks[:-MAX_ACTIVE_TASKS]:  # Keep the most recent tasks
                     task = app_state["tasks"][task_id]
-                    if task["status"] == "in_progress":
+                    if task["status"] in ["in_progress", "submitted"]:
                         print(f"Auto-completing older task {task_id} to limit active tasks")
                         task["status"] = "completed"
                         task["end_time"] = current_time.isoformat()
@@ -546,6 +624,19 @@ def get_task(task_id):
     if task:
         return jsonify({"task": task})
     return jsonify({"error": "Task not found"}), 404
+
+@app.route("/clear-tasks", methods=["GET"])
+def clear_tasks():
+    """Clear all tasks from the app state."""
+    app_state["tasks"] = {}
+    app_state["summary"] = {
+        "urls_crawled": 0,
+        "urls_indexed": 0,
+        "active_tasks": 0,
+        "completed_tasks": 0,
+        "failed_tasks": 0
+    }
+    return jsonify({"status": "success", "message": "All tasks cleared"})
 
 @app.route("/export", methods=["GET"])
 def export_index():

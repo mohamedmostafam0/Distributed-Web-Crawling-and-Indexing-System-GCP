@@ -120,16 +120,19 @@ class MasterNode:
             return False
 
     # Modify publish_crawl_task to accept parameters
-    def publish_crawl_task(self, url, depth=0, domain_restriction=None, source_job_id=None, depth_limit=None):
+    def publish_crawl_task(self, url, depth=0, domain_restriction=None, source_job_id=None, depth_limit=None, is_continuation=False):
         """Publishes a single URL crawl task to Pub/Sub."""
-        task_id = str(uuid.uuid4())
+        # If this is a continuation, use the source_job_id as the task_id to maintain the same task lineage
+        # Otherwise, generate a new UUID for the task
+        task_id = source_job_id if is_continuation else str(uuid.uuid4())
         message_data = {
             "task_id": task_id,
             "url": url,
             "depth": depth,
             "depth_limit": depth_limit,
             "domain_restriction": domain_restriction, # Pass along
-            "source_job_id": source_job_id # Optional: Link back to UI job
+            "source_job_id": source_job_id, # Optional: Link back to UI job
+            "is_continuation": is_continuation # Flag to indicate if this is a continuation of an existing task
         }
         data = json.dumps(message_data).encode("utf-8")
 
@@ -166,9 +169,18 @@ class MasterNode:
 
             task_id = job_meta.get("task_id")
             gcs_path = job_meta.get("gcs_path")
-            self.total_jobs_received += 1
-            # self.publish_metric("crawl_jobs_received", self.total_jobs_received)
-            self.publish_progress_metric("job_received", extra={"job_id": task_id})
+            is_continuation = job_meta.get("is_continuation", False)
+            
+            # Only count as a new job and publish job_received event if this is not a continuation
+            if not is_continuation:
+                self.total_jobs_received += 1
+                # self.publish_metric("crawl_jobs_received", self.total_jobs_received)
+                self.publish_progress_metric("job_received", extra={"job_id": task_id})
+            else:
+                # For continuations, publish a different event type to avoid UI clutter
+                url_count = job_meta.get("url_count", 0)
+                logging.info(f"Received continuation of task {task_id} with {url_count} new URLs")
+                self.publish_progress_metric("task_continuation", extra={"job_id": task_id, "url_count": url_count})
 
             if not task_id or not gcs_path:
                 logging.error("Missing task_id or gcs_path in the message.")
@@ -201,27 +213,66 @@ class MasterNode:
                 return
 
             job_data = json.loads(blob_content)
-            seed_urls = job_data.get("seed_urls", [])
-            depth_limit = job_data.get("depth")
-            domain_restriction = job_data.get("domain_restriction")
-
-            if not isinstance(seed_urls, list) or not seed_urls:
-                logging.warning(f"No seed URLs found in job {task_id}. Skipping.")
+            
+            # Check if this is a batch of URLs from crawler or a seed job from UI
+            if "urls" in job_data:
+                # This is a batch of URLs from crawler
+                urls = job_data.get("urls", [])
+                depth = job_data.get("depth")
+                domain_restriction = job_data.get("domain_restriction")
+                source_task_id = job_data.get("source_task_id")
+                url_count = job_data.get("url_count", len(urls))
+                
+                if not isinstance(urls, list) or not urls:
+                    logging.warning(f"No URLs found in batch {task_id}. Skipping.")
+                    message.ack()
+                    return
+                
+                logging.info(f"Processing batch of {url_count} URLs from task {task_id}")
+                
+                # Process URLs in the batch
+                # Important: Use the original task_id for all URLs in the batch
+                # This ensures all URLs found under a seed URL are attached to the same task
+                for url in urls:
+                    # For continuations, use the original depth_limit if available, otherwise use MAX_DEPTH
+                    original_depth_limit = job_data.get("depth_limit", job_data.get("total_depth", 3))
+                    
+                    self.publish_crawl_task(
+                        url,
+                        depth=depth,
+                        domain_restriction=domain_restriction,
+                        source_job_id=task_id,  # Use the task_id from the batch, not source_task_id
+                        depth_limit=original_depth_limit,  # Use the original depth limit
+                        is_continuation=True  # Flag to indicate this is a continuation
+                    )
+                    time.sleep(0.01)  # Small delay to avoid overwhelming the system
+                
+                self.publish_progress_metric("urls_scheduled", extra={"count": url_count, "job_id": task_id})
+                logging.info(f"Published {url_count} crawl tasks for batch {task_id}")
                 message.ack()
-                return
+            else:
+                # This is a seed job from UI
+                seed_urls = job_data.get("seed_urls", [])
+                depth_limit = job_data.get("depth")
+                domain_restriction = job_data.get("domain_restriction")
 
-            for url in seed_urls:
-                self.publish_crawl_task(
-                    url,
-                    depth=0,
-                    domain_restriction=domain_restriction,
-                    source_job_id=task_id,
-                    depth_limit=depth_limit
-                )
-                time.sleep(0.05)
-            self.publish_progress_metric("url_scheduled", extra={"url": url, "job_id": task_id})
-            logging.info(f"Published crawl tasks for job {task_id}")
-            message.ack()
+                if not isinstance(seed_urls, list) or not seed_urls:
+                    logging.warning(f"No seed URLs found in job {task_id}. Skipping.")
+                    message.ack()
+                    return
+
+                for url in seed_urls:
+                    self.publish_crawl_task(
+                        url,
+                        depth=0,
+                        domain_restriction=domain_restriction,
+                        source_job_id=task_id,
+                        depth_limit=depth_limit
+                    )
+                    time.sleep(0.05)
+                self.publish_progress_metric("url_scheduled", extra={"url": seed_urls[0], "job_id": task_id})
+                logging.info(f"Published seed crawl tasks for job {task_id}")
+                message.ack()
 
         except json.JSONDecodeError as e:
             logging.error(f"Failed to parse JSON: {e}")
