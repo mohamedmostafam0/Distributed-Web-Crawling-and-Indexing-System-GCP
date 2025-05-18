@@ -1825,34 +1825,48 @@
             const modal = new bootstrap.Modal(modalElement);
             modal.show();
             
-            // Initialize tabs manually after modal is shown
+            // Let Bootstrap handle the tabs
             modalElement.addEventListener("shown.bs.modal", function () {
-              // Get all tab triggers and initialize them manually
-              const tabTriggerList = modalElement.querySelectorAll('[data-bs-toggle="tab"]');
-              tabTriggerList.forEach(function (tabTriggerEl) {
-                tabTriggerEl.addEventListener('click', function (event) {
+              // Instead of manually handling tabs, let Bootstrap's tab.js handle it
+              // This avoids the 'Illegal invocation' error in selector-engine.js
+            });
+            
+            // Initialize the tabs using Bootstrap's Tab API after the modal is in the DOM
+            setTimeout(() => {
+              // The timeout ensures the modal is fully in the DOM before initializing tabs
+              const tabElements = modalElement.querySelectorAll('[data-bs-toggle="tab"]');
+              tabElements.forEach(tabElement => {
+                tabElement.addEventListener('click', function(event) {
                   event.preventDefault();
-                  // Hide all tab panes
-                  const tabContent = modalElement.querySelector('.tab-content');
-                  const tabPanes = tabContent.querySelectorAll('.tab-pane');
-                  tabPanes.forEach(pane => {
+                  const tabTarget = document.querySelector(this.getAttribute('href'));
+                  
+                  // Hide all tab panes in this modal
+                  const allPanes = modalElement.querySelectorAll('.tab-pane');
+                  allPanes.forEach(pane => {
                     pane.classList.remove('show', 'active');
                   });
                   
                   // Remove active class from all tabs
-                  tabTriggerList.forEach(tab => {
+                  tabElements.forEach(tab => {
                     tab.classList.remove('active');
                   });
                   
-                  // Add active class to clicked tab
-                  tabTriggerEl.classList.add('active');
-                  
-                  // Show the target tab pane
-                  const target = document.querySelector(tabTriggerEl.getAttribute('href'));
-                  target.classList.add('show', 'active');
+                  // Show the target pane and make tab active
+                  this.classList.add('active');
+                  tabTarget.classList.add('show', 'active');
                 });
               });
-            });
+              
+              // Activate the first tab by default
+              const firstTab = modalElement.querySelector('[data-bs-toggle="tab"]');
+              if (firstTab) {
+                firstTab.classList.add('active');
+                const firstTabTarget = document.querySelector(firstTab.getAttribute('href'));
+                if (firstTabTarget) {
+                  firstTabTarget.classList.add('show', 'active');
+                }
+              }
+            }, 50);
 
             // Clean up modal on hide
             modalElement.addEventListener("hidden.bs.modal", function () {
@@ -1950,5 +1964,7 @@
         updateHealthStatus();
       }, 5000);
     </script>
+    <!-- Add Bootstrap JavaScript bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>
