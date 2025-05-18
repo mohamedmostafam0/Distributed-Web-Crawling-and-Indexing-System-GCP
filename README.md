@@ -23,26 +23,30 @@ This distributed system crawls web pages, processes their content, and indexes t
 
 ## System Architecture
 
-![Architecture Diagram](https://via.placeholder.com/800x400?text=System+Architecture+Diagram)
+![Architecture Diagram](architecture_diagram.png)
 
 The system consists of the following components:
 
 1. **UI Layer**:
+
    - Flask web application for user interaction
    - RESTful API endpoints for programmatic access
    - Real-time dashboard using WebSockets
 
 2. **Control Layer**:
+
    - **Master Node**: Coordinates crawling tasks and manages worker allocation
    - **Task Scheduler**: Prioritizes and distributes crawling tasks
    - **Metrics Collector**: Aggregates system performance metrics
 
 3. **Processing Layer**:
+
    - **Crawler Nodes**: Distributed crawlers that fetch and process web pages
    - **Content Extractor**: Parses HTML and extracts relevant content
    - **Indexer Nodes**: Prepares and indexes processed content
 
 4. **Storage Layer**:
+
    - **Elasticsearch**: For indexing and searching content
    - **Cloud Storage**: For storing raw crawl data and processed content
 
@@ -76,13 +80,13 @@ The system consists of the following components:
    ```bash
    # Authenticate with GCP
    gcloud auth login
-   
+
    # Set your project ID
    gcloud config set project your-project-id
-   
+
    # Create a Cloud Storage bucket
    gsutil mb gs://your-storage-bucket
-   
+
    # Create Pub/Sub topics and subscriptions
    gcloud pubsub topics create new-crawl-jobs
    gcloud pubsub topics create crawl-metrics
@@ -259,7 +263,7 @@ This system is designed to run on Google Cloud Platform using various managed se
    gcloud builds submit --tag gcr.io/your-project-id/web-crawler-master ./src/master
    gcloud builds submit --tag gcr.io/your-project-id/web-crawler-crawler ./src/crawler
    gcloud builds submit --tag gcr.io/your-project-id/web-crawler-indexer ./src/indexer
-   
+
    # Deploy to Cloud Run
    gcloud run deploy web-crawler-ui --image gcr.io/your-project-id/web-crawler-ui --platform managed
    gcloud run deploy web-crawler-master --image gcr.io/your-project-id/web-crawler-master --platform managed
@@ -321,7 +325,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
-
 
 ## Acknowledgments
 
