@@ -75,6 +75,8 @@ class CrawlerNode:
         self.progress_topic_path = self.publisher.topic_path(self.PROJECT_ID, self.PROGRESS_METRICS_TOPIC_ID)
 
 
+
+
     def publish_health_status(self):
         health_msg = {
             "node_type": "crawler",
