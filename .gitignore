@@ -24,7 +24,11 @@ wheels/
 venv/
 env/
 ENV/
-**/.env
+.env
+/src/master/.env
+/src/crawler/.env
+/src/indexer/.env
+/src/UI/.env
 
 # Google Cloud Platform
 *.json
